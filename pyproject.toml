@@ -1,0 +1,18 @@
+[project]
+name = "readytrader"
+version = "0.1.0"
+description = "ReadyTrader: agent-first crypto trading MCP with safety governance, backtesting, and stress testing."
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["paper.db"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+

@@ -1,0 +1,12 @@
+fastmcp>=0.1.0
+ccxt
+web3
+python-dotenv
+requests
+pandas
+ta
+tweepy
+praw
+newsapi-python
+RestrictedPython
+pytest
