@@ -6,6 +6,7 @@ from functools import lru_cache
 from .base import Signer
 from .encrypted_keystore import EncryptedKeystoreSigner
 from .env_private_key import EnvPrivateKeySigner
+from .remote_signer import RemoteSigner
 
 
 @lru_cache(maxsize=1)
@@ -16,11 +17,14 @@ def get_signer() -> Signer:
     Supported:
     - env_private_key (default): uses PRIVATE_KEY env var
     - keystore: uses KEYSTORE_PATH + KEYSTORE_PASSWORD
+    - remote: uses SIGNER_REMOTE_URL (HTTP signer / sidecar)
     """
     signer_type = os.getenv("SIGNER_TYPE", "env_private_key").strip().lower()
     if signer_type == "env_private_key":
         return EnvPrivateKeySigner()
     if signer_type == "keystore":
         return EncryptedKeystoreSigner()
+    if signer_type == "remote":
+        return RemoteSigner()
     raise ValueError(f"Unsupported SIGNER_TYPE: {signer_type}")
 

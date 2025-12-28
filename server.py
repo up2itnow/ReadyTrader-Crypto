@@ -351,6 +351,7 @@ def _transfer_eth(to_address: str, amount: float, chain: str = "ethereum") -> st
     try:
         w3 = _get_web3(chain)
         signer = get_signer()
+        policy_engine.validate_signer_address(address=signer.get_address())
         
         if not w3.is_address(to_address):
             return f"Invalid address format: {to_address}"
@@ -395,6 +396,7 @@ def _swap_tokens(from_token: str, to_token: str, amount: float, chain: str = "et
 
         w3 = _get_web3(chain)
         signer = get_signer()
+        policy_engine.validate_signer_address(address=signer.get_address())
         wallet_address = signer.get_address()
         
         # 2. Get Quote (mostly to get decimals/units)
@@ -2092,6 +2094,7 @@ def _tool_confirm_execution(request_id: str, confirm_token: str) -> str:
             )
             w3 = _get_web3(chain)
             signer = get_signer()
+            policy_engine.validate_signer_address(address=signer.get_address())
             signed = signer.sign_transaction(tx, chain_id=int(w3.eth.chain_id))
             tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
             return _json_ok({"request_id": request_id, "kind": kind, "tx_hash": w3.to_hex(tx_hash)})
@@ -2101,6 +2104,7 @@ def _tool_confirm_execution(request_id: str, confirm_token: str) -> str:
             tx = payload["tx"]
             w3 = _get_web3(chain)
             signer = get_signer()
+            policy_engine.validate_signer_address(address=signer.get_address())
             signed = signer.sign_transaction(tx, chain_id=int(w3.eth.chain_id))
             tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
             return _json_ok({"request_id": request_id, "kind": kind, "tx_hash": w3.to_hex(tx_hash)})

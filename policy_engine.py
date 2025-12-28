@@ -149,6 +149,21 @@ class PolicyEngine:
                 data={"router": router_address, "chain": chain, "allow_routers": sorted(allow), "context": context},
             )
 
+    def validate_signer_address(self, *, address: str) -> None:
+        """
+        Optional safeguard: restrict signing to a known allowlist of addresses.
+
+        This helps prevent an operator accidentally pointing ReadyTrader at the wrong signer/key.
+        """
+        addr = (address or "").strip().lower()
+        allow = _parse_csv_set(os.getenv("ALLOW_SIGNER_ADDRESSES"))
+        if allow and addr not in allow:
+            raise PolicyError(
+                code="signer_address_not_allowed",
+                message="Signer address is not allowlisted.",
+                data={"address": address, "allow_signer_addresses": sorted(allow)},
+            )
+
     def validate_cex_order(
         self,
         *,

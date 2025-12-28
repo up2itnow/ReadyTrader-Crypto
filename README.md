@@ -138,11 +138,16 @@ In live mode, the MCP will reject all execution tools until consent is granted:
 #### Signing configuration (Phase 2)
 By default, live signing uses a raw private key from `PRIVATE_KEY` (development only). For better security, use an encrypted keystore.
 
-* `SIGNER_TYPE=env_private_key` (default) or `SIGNER_TYPE=keystore`
+* `SIGNER_TYPE=env_private_key` (default) or `SIGNER_TYPE=keystore` or `SIGNER_TYPE=remote`
 * If `SIGNER_TYPE=env_private_key`: set `PRIVATE_KEY=...`
 * If `SIGNER_TYPE=keystore`:
   - `KEYSTORE_PATH=/path/to/keystore.json`
   - `KEYSTORE_PASSWORD=...`
+* If `SIGNER_TYPE=remote`:
+  - `SIGNER_REMOTE_URL=http://signer:8080` (must expose `/address` and `/sign_transaction`)
+\n
+Optional signer allowlist:\n
+* `ALLOW_SIGNER_ADDRESSES=0xabc...,0xdef...` (deny unless signer address is allowlisted)\n
 
 #### CEX credentials (Phase 3)
 To place CEX orders or fetch CEX balances, configure ccxt credentials via env.
