@@ -11,7 +11,7 @@ See also: `DISCLAIMER.md`.
 
 ---
 
-**Turn your AI Agent into a Hedge Fund Manager.**
+**Turn your AI Agent into a risk-aware crypto trading operator.**
 
 This MCP (Model Context Protocol) Server provides a complete suite of cryptocurrency trading tools for AI agents. It goes beyond simple buy/sell commands, offering a "Risk-Aware" and "Regime-Adaptive" architecture.
 
@@ -21,7 +21,7 @@ This MCP (Model Context Protocol) Server provides a complete suite of cryptocurr
 *   **🧠 Strategy Factory**: Built-in Backtesting Engine. Agents can write Python strategies, run them against historical data, and get instant PnL feedback.
 *   **🛡️ Risk Guardian**: Hard-coded safety layer. Automatically rejects trade requests that violate risk management rules (e.g., Position Sizing > 5%, "Falling Knife" protection).
 *   **☀️ Market Regime Detection**: "Self-Awareness" of market conditions. Detects if the market is **Trending**, **Ranging (Chop)**, or **Volatile** using ADX/ATR.
-*   **📰 Advanced Intelligence**: Institutional-grade simulated feeds for Social Sentiment (X/Reddit) and Financial News (Bloomberg/Reuters).
+*   **📰 Advanced Intelligence**: Optional sentiment/news inputs (simulated by default) so agents can prototype workflows without wiring paid APIs.
 
 ---
 

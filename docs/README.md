@@ -5,7 +5,7 @@ Recommended reading order:
 1) **Tools**
    - `TOOLS.md` (generated): all MCP tools and docstrings
 2) **Operations**
-   - `RUNBOOK.md`: operator runbook + incident scenarios
+   - `../RUNBOOK.md`: operator runbook + incident scenarios
    - `ERRORS.md`: common error codes + troubleshooting
    - `THREAT_MODEL.md`: threat model for live trading deployments
    - `CUSTODY.md`: key custody + rotation guidance
@@ -15,3 +15,7 @@ Recommended reading order:
 4) **Marketing surface (keep aligned with reality)**
    - `POSITIONING.md`
 
+5) **Release & governance**
+   - `../CHANGELOG.md`
+   - `../RELEASE_READINESS_CHECKLIST.md`
+   - `../SECURITY.md`
