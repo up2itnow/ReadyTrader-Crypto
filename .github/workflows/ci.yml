@@ -32,8 +32,9 @@ jobs:
       - name: Secret scan (trufflehog, verified only)
         uses: trufflesecurity/trufflehog@v3.88.0
         with:
-          scan: filesystem
           path: .
+          base: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          head: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           extra_args: --only-verified
 
       - name: Tests
