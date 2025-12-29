@@ -1,0 +1,19 @@
+# Python cache / build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Local secrets / env
+.env
+
+# Local runtime artifacts
+paper.db
+
+# Dev-only
+tests/
+.github/
+requirements.lock.txt

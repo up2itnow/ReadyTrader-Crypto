@@ -1,6 +1,9 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 # Install system dependencies if needed (e.g. for building some python packages)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -9,16 +12,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --upgrade pip && python -m pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY server.py .
-COPY verify_server.py .
-COPY paper_engine.py .
-COPY intelligence.py .
-COPY backtest_engine.py .
-COPY market_regime.py .
-COPY risk_manager.py .
+COPY . .
 
 # Default command
 CMD ["fastmcp", "run", "server.py"]

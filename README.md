@@ -49,7 +49,7 @@ When `PAPER_MODE=false`, **live execution is still blocked by default** until yo
 *   `EXECUTION_MODE=dex` (Options: `dex`, `cex`, `hybrid`)
 *   **Execution approval mode** (user-selectable):
     - `EXECUTION_APPROVAL_MODE=auto` (default) executes trades immediately
-    - `EXECUTION_APPROVAL_MODE=approve_each` returns proposals and requires `confirm_execution`\n
+    - `EXECUTION_APPROVAL_MODE=approve_each` returns proposals and requires `confirm_execution`
   Backward compatible: `HUMAN_CONFIRMATION=true` implies `EXECUTION_APPROVAL_MODE=approve_each`.
 
 #### Optional Policy Controls (Phase 1)
@@ -80,36 +80,36 @@ These settings improve market-data reliability and performance via caching, prox
 * `HTTP_TIMEOUT_SEC=10` (used for external HTTP calls like 1inch API)
 
 #### MarketDataBus: user-provided feeds (Phase 3)
-ReadyTrader supports ingesting market data snapshots from external sources (including other MCP servers).\n
-If present and fresh, ingested snapshots are preferred over CCXT REST.\n
-\n
-Tools:\n
-* `ingest_ticker(symbol, last, bid=None, ask=None, timestamp_ms=None, source='user', ttl_sec=10.0)`\n
-* `ingest_ohlcv(symbol, timeframe, ohlcv_json, limit=100, source='user', ttl_sec=60.0)`\n
-* `get_ticker(symbol)`\n
-* `get_marketdata_status()`\n
-\n
-#### Websocket market data streams (Phase 2.5)\n
-ReadyTrader can run **opt-in** background websocket ticker streams for top exchanges and prefer them over CCXT REST.\n
-\n
-Tools:\n
-* `start_marketdata_ws(exchange, symbols_json, market_type='spot')`\n
-* `stop_marketdata_ws(exchange, market_type='spot')`\n
-\n
-Optional private order updates (Phase 2.5):\n
-* `start_cex_private_ws(exchange='binance', market_type='spot')`\n
-* `stop_cex_private_ws(exchange='binance', market_type='spot')`\n
-* `list_cex_private_updates(exchange='binance', market_type='spot', limit=100)`\n
+ReadyTrader supports ingesting market data snapshots from external sources (including other MCP servers).
+If present and fresh, ingested snapshots are preferred over CCXT REST.
 
-#### Ops/Observability (Phase 4)\n
-Docker-first approach (no ports required by default).\n
-\n
-Tools:\n
-* `get_metrics_snapshot()`\n
-* `get_health()`\n
-\n
-Operator docs:\n
-* `RUNBOOK.md`\n
+Tools:
+* `ingest_ticker(symbol, last, bid=None, ask=None, timestamp_ms=None, source='user', ttl_sec=10.0)`
+* `ingest_ohlcv(symbol, timeframe, ohlcv_json, limit=100, source='user', ttl_sec=60.0)`
+* `get_ticker(symbol)`
+* `get_marketdata_status()`
+
+#### Websocket market data streams (Phase 2.5)
+ReadyTrader can run **opt-in** background websocket ticker streams for top exchanges and prefer them over CCXT REST.
+
+Tools:
+* `start_marketdata_ws(exchange, symbols_json, market_type='spot')`
+* `stop_marketdata_ws(exchange, market_type='spot')`
+
+Optional private order updates (Phase 2.5):
+* `start_cex_private_ws(exchange='binance', market_type='spot')`
+* `stop_cex_private_ws(exchange='binance', market_type='spot')`
+* `list_cex_private_updates(exchange='binance', market_type='spot', limit=100)`
+
+#### Ops/Observability (Phase 4)
+Docker-first approach (no ports required by default).
+
+Tools:
+* `get_metrics_snapshot()`
+* `get_health()`
+
+Operator docs:
+* `RUNBOOK.md`
 
 #### Phase 6: Rate limiting (in-memory)
 These limits reset when the container restarts.
@@ -118,17 +118,17 @@ These limits reset when the container restarts.
 * Per-tool override: `RATE_LIMIT_SWAP_TOKENS_PER_MIN=5` (tool names are uppercased)
 
 #### Phase 6: Two-step execution confirmation (optional)
-If `HUMAN_CONFIRMATION=true`, live execution tools return a proposal with `request_id` + `confirm_token`.\n
-Use:\n
-* `list_pending_executions()`\n
-* `confirm_execution(request_id, confirm_token)` (single-use, TTL)\n
-* `cancel_execution(request_id)`\n
+If `EXECUTION_APPROVAL_MODE=approve_each` (or `HUMAN_CONFIRMATION=true`), live execution tools return a proposal with `request_id` + `confirm_token`.
+Use:
+* `list_pending_executions()`
+* `confirm_execution(request_id, confirm_token)` (single-use, TTL)
+* `cancel_execution(request_id)`
 
 #### Phase 6: Advanced Risk Mode (urgent consent)
-Advanced mode allows raising certain hard limits **at runtime** (in-memory only; resets on restart).\n
-1) Call `get_advanced_risk_disclosure()`\n
-2) Call `accept_advanced_risk_disclosure(true)`\n
-3) Call `set_policy_overrides('{\"MAX_TRADE_AMOUNT\": 5000, \"MAX_CEX_ORDER_AMOUNT\": 1.0}')`\n
+Advanced mode allows raising certain hard limits **at runtime** (in-memory only; resets on restart).
+1) Call `get_advanced_risk_disclosure()`
+2) Call `accept_advanced_risk_disclosure(true)`
+3) Call `set_policy_overrides('{"MAX_TRADE_AMOUNT": 5000, "MAX_CEX_ORDER_AMOUNT": 1.0}')`
 You can review with `get_policy_overrides()`.
 
 #### Risk profiles (Phase C)
@@ -157,9 +157,9 @@ By default, live signing uses a raw private key from `PRIVATE_KEY` (development 
   - `KEYSTORE_PASSWORD=...`
 * If `SIGNER_TYPE=remote`:
   - `SIGNER_REMOTE_URL=http://signer:8080` (must expose `/address` and `/sign_transaction`)
-\n
-Optional signer allowlist:\n
-* `ALLOW_SIGNER_ADDRESSES=0xabc...,0xdef...` (deny unless signer address is allowlisted)\n
+
+Optional signer allowlist:
+* `ALLOW_SIGNER_ADDRESSES=0xabc...,0xdef...` (deny unless signer address is allowlisted)
 
 #### CEX credentials (Phase 3)
 To place CEX orders or fetch CEX balances, configure ccxt credentials via env.
@@ -294,7 +294,7 @@ You don't need to do anything. If the agent tries to bet 50% of the portfolio on
 *Built for the Agentic Future.*
 
 ## 🧪 Synthetic Stress Testing (Phase 5)
-This MCP includes a **100% randomized but deterministic-by-seed** synthetic market simulator. It can generate trending, ranging, volatile regimes and inject **black swan crashes** and **parabolic blow-off tops**.\n
+This MCP includes a **100% randomized (but deterministic-by-seed)** synthetic market simulator. It can generate trending, ranging, and volatile regimes and inject **black swan crashes** and **parabolic blow-off tops**.
 
 ### Tool: `run_synthetic_stress_test(strategy_code, config_json='{}')`
 Returns JSON containing:
@@ -306,14 +306,14 @@ Returns JSON containing:
 Example `config_json`:
 ```json
 {
-  \"master_seed\": 123,
-  \"scenarios\": 200,
-  \"length\": 500,
-  \"timeframe\": \"1h\",
-  \"initial_capital\": 10000,
-  \"start_price\": 100,
-  \"base_vol\": 0.01,
-  \"black_swan_prob\": 0.02,
-  \"parabolic_prob\": 0.02
+  "master_seed": 123,
+  "scenarios": 200,
+  "length": 500,
+  "timeframe": "1h",
+  "initial_capital": 10000,
+  "start_price": 100,
+  "base_vol": 0.01,
+  "black_swan_prob": 0.02,
+  "parabolic_prob": 0.02
 }
 ```
