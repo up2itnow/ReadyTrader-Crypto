@@ -10,6 +10,7 @@ Core responsibilities:
 
 import json
 import os
+import threading
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
@@ -25,6 +26,7 @@ from execution.binance_user_stream import BinanceUserStreamManager
 from execution.cex_executor import CexExecutor
 from execution.router import venue_allowed
 from execution_store import ExecutionStore
+from idempotency_store import IdempotencyStore
 from intelligence import (
     analyze_social_sentiment,
     fetch_financial_news,
@@ -41,7 +43,7 @@ from marketdata import (
     MarketDataBus,
     WsStreamManager,
 )
-from observability import Metrics, build_log_context, log_event
+from observability import AuditLog, Metrics, build_log_context, log_event, now_ms
 from paper_engine import PaperTradingEngine
 from policy_engine import PolicyEngine, PolicyError
 from rate_limiter import FixedWindowRateLimiter, RateLimitError
@@ -81,9 +83,10 @@ policy_engine = PolicyEngine()
 rate_limiter = FixedWindowRateLimiter()
 execution_store = ExecutionStore()
 metrics = Metrics()
+audit_log = AuditLog()
+idempotency_store = IdempotencyStore()
 
-# Phase B: idempotency store (per-process, non-persistent)
-IDEMPOTENCY_STORE: Dict[str, Dict[str, Any]] = {}
+_IDEMPOTENCY_LOCK = threading.Lock()
 
 # Phase 1: Per-process (non-persistent) live trading consent gate
 DISCLOSURE_VERSION = "1"
@@ -219,6 +222,45 @@ def _with_observability(tool: str, fn):
     try:
         out = fn()
         metrics.inc(f"tool_{tool}_ok_total", 1)
+        # Optional operator audit log (SQLite) - best-effort.
+        try:
+            payload = json.loads(out)
+            ok = bool(payload.get("ok")) if isinstance(payload, dict) else True
+            error_code = None
+            mode = venue = exchange = market_type = None
+            summary: Dict[str, Any] = {}
+            if isinstance(payload, dict):
+                if ok:
+                    data = payload.get("data") or {}
+                    if isinstance(data, dict):
+                        mode = data.get("mode")
+                        venue = data.get("venue")
+                        exchange = data.get("exchange")
+                        market_type = data.get("market_type")
+                        # keep summary small and non-sensitive
+                        for k in ("symbol", "chain", "request_id", "needs_confirmation", "reused", "idempotency_key"):
+                            if k in data:
+                                summary[k] = data.get(k)
+                else:
+                    err = payload.get("error") or {}
+                    if isinstance(err, dict):
+                        error_code = err.get("code")
+            audit_log.append(
+                ts_ms=ctx.get("ts_ms") or now_ms(),
+                request_id=str(ctx.get("request_id") or ""),
+                tool=tool,
+                ok=ok,
+                error_code=error_code,
+                mode=str(mode) if mode is not None else None,
+                venue=str(venue) if venue is not None else None,
+                exchange=str(exchange) if exchange is not None else None,
+                market_type=str(market_type) if market_type is not None else None,
+                summary=summary or None,
+            )
+        except Exception as e:
+            # Never let audit logging interfere with tool execution.
+            # build_log_context() + log_event() should be safe (no secrets; JSON-serializable primitives only).
+            log_event("audit_error", ctx=ctx, data={"error": str(e)})
         return out
     except Exception as e:
         metrics.inc(f"tool_{tool}_error_total", 1)
@@ -1095,7 +1137,7 @@ def _tool_place_cex_order(
 
     try:
         if idempotency_key:
-            cached = IDEMPOTENCY_STORE.get(idempotency_key)
+            cached = idempotency_store.get(idempotency_key)
             if cached is not None:
                 return _json_ok({"idempotency_key": idempotency_key, "reused": True, **cached})
 
@@ -1137,7 +1179,7 @@ def _tool_place_cex_order(
                 "proposal": prop.payload,
             }
             if idempotency_key:
-                IDEMPOTENCY_STORE[idempotency_key] = out
+                idempotency_store.set(idempotency_key, out)
             return _json_ok(
                 {
                     **out,
@@ -1155,7 +1197,7 @@ def _tool_place_cex_order(
             "order": ex.normalize_order(order),
         }
         if idempotency_key:
-            IDEMPOTENCY_STORE[idempotency_key] = out
+            idempotency_store.set(idempotency_key, out)
         return _json_ok({"idempotency_key": idempotency_key or None, **out})
     except PolicyError as e:
         return _json_err(e.code, e.message, e.data)
@@ -1584,13 +1626,27 @@ def get_health() -> str:
     rl = _rate_limit("get_health")
     if rl:
         return rl
+    env_flags = {
+        "paper_mode": PAPER_MODE,
+        "execution_mode": _get_execution_mode(),
+        "trading_halted": os.getenv("TRADING_HALTED", "false").lower() == "true",
+        "live_trading_enabled": os.getenv("LIVE_TRADING_ENABLED", "false").lower() == "true",
+        "execution_approval_mode": _get_execution_approval_mode(),
+        "risk_profile": RISK_PROFILE,
+        "audit_enabled": audit_log.enabled(),
+        "idempotency_persistence_enabled": bool(
+            (os.getenv("READYTRADER_IDEMPOTENCY_DB_PATH") or os.getenv("IDEMPOTENCY_DB_PATH") or "").strip()
+        ),
+            "execution_proposal_persistence_enabled": execution_store.persistence_enabled(),
+    }
     return _json_ok(
         {
-            "paper_mode": PAPER_MODE,
-            "execution_mode": _get_execution_mode(),
-            "trading_halted": os.getenv("TRADING_HALTED", "false").lower() == "true",
-            "live_trading_enabled": os.getenv("LIVE_TRADING_ENABLED", "false").lower() == "true",
-            "marketdata": marketdata_bus.status(),
+            **env_flags,
+            "marketdata": {
+                "bus": marketdata_bus.status(),
+                "ws_streams": ws_manager.status(),
+                "private_streams": {"binance_user_stream": binance_user_streams.status()},
+            },
             "metrics": {"uptime_sec": metrics.snapshot().get("uptime_sec")},
         }
     )

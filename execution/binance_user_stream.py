@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import random
 import threading
 import time
 from collections import deque
@@ -39,9 +40,11 @@ class BinanceUserStream:
 
     def __init__(self, *, market_type: str = "spot", max_events: int = 500) -> None:
         self.market_type = (market_type or "spot").strip().lower()
+        self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._last_error: Optional[str] = None
+        self._last_message_at: Optional[float] = None
         self._events: Deque[Dict[str, Any]] = deque(maxlen=max(50, int(max_events)))
 
     def start(self) -> None:
@@ -57,11 +60,21 @@ class BinanceUserStream:
             self._thread.join(timeout=3)
 
     def status(self) -> Dict[str, Any]:
-        return {"running": bool(self._thread and self._thread.is_alive()), "last_error": self._last_error}
+        with self._lock:
+            age = None
+            if self._last_message_at is not None:
+                age = round(time.time() - self._last_message_at, 3)
+            last_error = self._last_error
+        return {
+            "running": bool(self._thread and self._thread.is_alive()),
+            "last_error": last_error,
+            "last_message_age_sec": age,
+        }
 
     def list_events(self, *, limit: int = 100) -> list[Dict[str, Any]]:
         n = max(0, int(limit))
-        return list(self._events)[-n:]
+        with self._lock:
+            return list(self._events)[-n:]
 
     def _run(self) -> None:
         asyncio.run(self._run_async())
@@ -138,10 +151,15 @@ class BinanceUserStream:
                             "exec_type": msg.get("x"),
                             "raw": msg,
                         }
-                        self._events.append(simplified)
+                        with self._lock:
+                            self._last_message_at = time.time()
+                            self._events.append(simplified)
             except Exception as e:
-                self._last_error = str(e)
-                await asyncio.sleep(backoff)
+                with self._lock:
+                    self._last_error = str(e)
+                # Jittered exponential backoff to avoid synchronized reconnect storms.
+                jitter = 0.5 + (random.random() * 0.5)  # nosec B311 (non-crypto jitter)  # 0.5x .. 1.0x
+                await asyncio.sleep(max(0.1, float(backoff)) * jitter)
                 backoff = min(30.0, backoff * 2)
 
 

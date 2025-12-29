@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
 import threading
+import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -152,10 +154,14 @@ class _WsStream:
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._last_error: Optional[str] = None
+        self._last_message_at: Optional[float] = None
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return
+        # If the stream was previously stopped, allow restarting.
+        self._stop.clear()
+        self._last_error = None
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
@@ -165,9 +171,13 @@ class _WsStream:
             self._thread.join(timeout=3)
 
     def status(self) -> Dict[str, Any]:
+        age = None
+        if self._last_message_at is not None:
+            age = round(time.time() - self._last_message_at, 3)
         return {
             "running": bool(self._thread and self._thread.is_alive()),
             "last_error": self._last_error,
+            "last_message_age_sec": age,
         }
 
     def _run(self) -> None:
@@ -175,6 +185,17 @@ class _WsStream:
 
     async def _run_async(self) -> None:  # pragma: no cover (network loop)
         raise NotImplementedError
+
+    def _mark_message(self) -> None:
+        self._last_message_at = time.time()
+
+    async def _sleep_backoff(self, backoff: float) -> None:
+        """
+        Sleep with a little jitter to avoid synchronized reconnect storms.
+        """
+        b = max(0.1, float(backoff))
+        jitter = 0.5 + (random.random() * 0.5)  # nosec B311 (non-crypto jitter)  # 0.5x .. 1.0x
+        await asyncio.sleep(b * jitter)
 
 
 class BinanceTickerStream(_WsStream):
@@ -206,6 +227,7 @@ class BinanceTickerStream(_WsStream):
                         snap = parse_binance_ticker_message(msg, stream_to_symbol=self.stream_to_symbol)
                         if not snap:
                             continue
+                        self._mark_message()
                         self.store.put_ticker(
                             symbol=snap["symbol"],
                             last=snap["last"],
@@ -217,7 +239,7 @@ class BinanceTickerStream(_WsStream):
                         )
             except Exception as e:
                 self._last_error = str(e)
-                await asyncio.sleep(backoff)
+                await self._sleep_backoff(backoff)
                 backoff = min(30.0, backoff * 2)
 
 
@@ -244,6 +266,7 @@ class CoinbaseTickerStream(_WsStream):
                         snap = parse_coinbase_ticker_message(msg)
                         if not snap:
                             continue
+                        self._mark_message()
                         self.store.put_ticker(
                             symbol=snap["symbol"],
                             last=snap["last"],
@@ -255,7 +278,7 @@ class CoinbaseTickerStream(_WsStream):
                         )
             except Exception as e:
                 self._last_error = str(e)
-                await asyncio.sleep(backoff)
+                await self._sleep_backoff(backoff)
                 backoff = min(30.0, backoff * 2)
 
 
@@ -282,6 +305,7 @@ class KrakenTickerStream(_WsStream):
                         snap = parse_kraken_ticker_message(msg)
                         if not snap:
                             continue
+                        self._mark_message()
                         self.store.put_ticker(
                             symbol=snap["symbol"],
                             last=snap["last"],
@@ -293,7 +317,7 @@ class KrakenTickerStream(_WsStream):
                         )
             except Exception as e:
                 self._last_error = str(e)
-                await asyncio.sleep(backoff)
+                await self._sleep_backoff(backoff)
                 backoff = min(30.0, backoff * 2)
 
 
@@ -306,6 +330,7 @@ class WsStreamManager:
 
     def __init__(self, *, store: InMemoryMarketDataStore) -> None:
         self._store = store
+        self._lock = threading.Lock()
         self._streams: Dict[str, _WsStream] = {}
 
     def start(self, *, exchange: str, symbols: List[str], market_type: str = "spot") -> None:
@@ -321,15 +346,19 @@ class WsStreamManager:
             s = KrakenTickerStream(symbols=symbols, store=self._store)
         else:
             raise ValueError("Unsupported exchange for websocket streams. Use one of: binance, coinbase, kraken")
-        self._streams[key] = s
+        with self._lock:
+            self._streams[key] = s
         s.start()
 
     def stop(self, *, exchange: str, market_type: str = "spot") -> None:
         key = f"{(exchange or '').strip().lower()}:{market_type}"
-        s = self._streams.pop(key, None)
+        with self._lock:
+            s = self._streams.pop(key, None)
         if s:
             s.stop()
 
     def status(self) -> Dict[str, Any]:
-        return {k: v.status() for k, v in self._streams.items()}
+        with self._lock:
+            items = list(self._streams.items())
+        return {k: v.status() for k, v in items}
 

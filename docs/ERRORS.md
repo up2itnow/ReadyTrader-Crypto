@@ -1,0 +1,68 @@
+## ReadyTrader Error Codes (Operator Guide)
+
+ReadyTrader tools return JSON in one of these shapes:
+- Success: `{ "ok": true, "data": {...} }`
+- Error: `{ "ok": false, "error": { "code": "...", "message": "...", "data": {...} } }`
+
+This page documents the most common high-impact error codes and what to do.
+
+### Live trading governance
+- **`live_trading_disabled`**
+  - Meaning: Live execution is blocked because `LIVE_TRADING_ENABLED` is not `true`.
+  - Fix: set `LIVE_TRADING_ENABLED=true` (and restart if running in Docker with env vars baked in).
+- **`trading_halted`**
+  - Meaning: Kill switch is on (`TRADING_HALTED=true`).
+  - Fix: set `TRADING_HALTED=false` to resume, or keep it enabled to stop all live execution.
+- **`consent_required`**
+  - Meaning: Per-process risk disclosure has not been accepted for this run.
+  - Fix: call `get_risk_disclosure()`, then `accept_risk_disclosure(true)`.
+- **`advanced_consent_required`**
+  - Meaning: Advanced Risk Mode overrides are blocked until urgent consent is accepted.
+  - Fix: call `get_advanced_risk_disclosure()`, then `accept_advanced_risk_disclosure(true)`.
+
+### Execution routing
+- **`execution_mode_blocked`**
+  - Meaning: The requested tool is blocked by `EXECUTION_MODE` (dex/cex/hybrid).
+  - Fix: set `EXECUTION_MODE` to allow the venue you want, or use the corresponding venue tool.
+
+### Rate limiting
+- **`rate_limited`**
+  - Meaning: The per-tool (or default) rate limit was exceeded for the current 60s window.
+  - Fix:
+    - slow down or batch calls
+    - raise limits with `RATE_LIMIT_DEFAULT_PER_MIN`, `RATE_LIMIT_EXECUTION_PER_MIN`, or `RATE_LIMIT_<TOOL>_PER_MIN`
+
+### Policy engine (allowlists / limits)
+Common examples (non-exhaustive):
+- **`chain_not_allowed`**, **`token_not_allowed`**, **`router_not_allowed`**
+  - Meaning: Allowlist is set and the requested chain/token/router is not allowed.
+  - Fix: update `ALLOW_CHAINS`, `ALLOW_TOKENS`, `ALLOW_ROUTERS` (or chain-specific `ALLOW_ROUTERS_<CHAIN>`).
+- **`trade_amount_too_large`**, **`transfer_amount_too_large`**, **`order_amount_too_large`**
+  - Meaning: A configured max limit was exceeded.
+  - Fix: lower sizing, or (if appropriate) enable Advanced Risk Mode and adjust overrides/limits.
+
+### Risk guardian (paper mode)
+- **`risk_blocked`**
+  - Meaning: Paper-mode risk checks blocked the trade (e.g., too large relative to portfolio).
+  - Fix: reduce size, deposit more paper funds, or adjust the strategy parameters.
+- **`risk_calc_error`**
+  - Meaning: Paper-mode risk calculations failed; ReadyTrader fails closed (safer).
+  - Fix: check paper DB health, ensure prices/metrics can be computed, rerun.
+
+### Websocket streams (Phase 2.5)
+- **`ws_start_error`**, **`ws_stop_error`**
+  - Meaning: Public websocket stream failed to start/stop (invalid symbols, network, etc.).
+  - Fix: verify exchange name, symbol formats, and network access.
+- **`private_ws_start_error`**, **`private_ws_stop_error`**, **`private_ws_list_error`**
+  - Meaning: Private stream failed (credentials, exchange support, network).
+  - Fix: verify CEX credentials and that the exchange supports the requested market type.
+
+### CCXT / exchange connectivity
+Errors are normalized via `errors.py` where possible:
+- **`ccxt_auth_error`**, **`ccxt_permission_denied`**
+  - Fix: check API keys, permissions, and allowlists.
+- **`ccxt_rate_limited`**
+  - Fix: reduce request frequency and/or tune caching and provider settings.
+- **`ccxt_network_error`**, **`ccxt_exchange_unavailable`**
+  - Fix: temporary outage; retry with backoff; consider switching marketdata providers.
+
