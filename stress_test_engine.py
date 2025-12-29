@@ -31,23 +31,38 @@ def _compile_strategy(strategy_code: str):
             return __import__(name, *args, **kwargs)
         raise ImportError(f"Importing '{name}' is forbidden.")
 
-    local_scope: Dict[str, Any] = {}
+    def safe_getitem(obj, key):
+        # Restrict access to "private" dict keys by convention.
+        if isinstance(key, str) and key.startswith("_"):
+            raise KeyError("Access to private keys is forbidden")
+        return obj[key]
+
+    def safe_setitem(obj, key, value):
+        if isinstance(key, str) and key.startswith("_"):
+            raise KeyError("Access to private keys is forbidden")
+        obj[key] = value
+        return value
+
     global_scope = safe_globals.copy()
     global_scope.update(utility_builtins)
     global_scope["__builtins__"]["__import__"] = safe_import
     global_scope["_getattr_"] = safe_getattr
+    global_scope["_getitem_"] = safe_getitem
+    global_scope["_setitem_"] = safe_setitem
+    global_scope["_getiter_"] = iter
     global_scope["pd"] = pd
     global_scope["ta"] = ta
 
     byte_code = compile_restricted(strategy_code, "<strategy>", "exec")
     # RestrictedPython sandbox: exec is required to evaluate user strategy code safely.
-    exec(byte_code, global_scope, local_scope)  # nosec B102
+    # Use the same dict for globals+locals so top-level definitions (e.g., PARAMS) are visible to on_candle().
+    exec(byte_code, global_scope, global_scope)  # nosec B102
 
-    on_candle = local_scope.get("on_candle")
+    on_candle = global_scope.get("on_candle")
     if not on_candle:
         raise ValueError("Strategy code must define on_candle(...)")
 
-    params = local_scope.get("PARAMS")
+    params = global_scope.get("PARAMS")
     if params is not None and not isinstance(params, dict):
         params = None
 

@@ -57,12 +57,25 @@ class BacktestEngine:
                     return __import__(name, *args, **kwargs)
                 raise ImportError(f"Importing '{name}' is forbidden.")
 
+            def safe_getitem(obj, key):
+                if isinstance(key, str) and key.startswith("_"):
+                    raise KeyError("Access to private keys is forbidden")
+                return obj[key]
+
+            def safe_setitem(obj, key, value):
+                if isinstance(key, str) and key.startswith("_"):
+                    raise KeyError("Access to private keys is forbidden")
+                obj[key] = value
+                return value
+
             # Construct safe global execution environment
-            local_scope = {}
             global_scope = safe_globals.copy()
             global_scope.update(utility_builtins)
             global_scope['__builtins__']['__import__'] = safe_import
             global_scope['_getattr_'] = safe_getattr
+            global_scope["_getitem_"] = safe_getitem
+            global_scope["_setitem_"] = safe_setitem
+            global_scope["_getiter_"] = iter
             
             # Expose specific libraries safely (User must not use internal _methods)
             global_scope['pd'] = pd 
@@ -72,14 +85,15 @@ class BacktestEngine:
             try:
                 byte_code = compile_restricted(strategy_code, '<inline>', 'exec')
                 # RestrictedPython sandbox: exec is required to evaluate user strategy code safely.
-                exec(byte_code, global_scope, local_scope)  # nosec B102
+                # Use the same dict for globals+locals so top-level vars are visible inside on_candle().
+                exec(byte_code, global_scope, global_scope)  # nosec B102
             except Exception as e:
                 return {"error": f"Strategy Compilation Error: {str(e)}"}
             
-            if 'on_candle' not in local_scope:
+            if 'on_candle' not in global_scope:
                 return {"error": "Strategy code must define 'def on_candle(close, rsi, state):' or similar"}
 
-            on_candle = local_scope['on_candle']
+            on_candle = global_scope['on_candle']
 
             # 4. Simulation Loop
             capital = initial_capital
