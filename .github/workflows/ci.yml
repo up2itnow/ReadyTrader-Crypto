@@ -29,6 +29,13 @@ jobs:
       - name: Dependency audit (pip-audit)
         run: pip-audit -r requirements.txt
 
+      - name: Secret scan (trufflehog, verified only)
+        uses: trufflesecurity/trufflehog@v3.88.0
+        with:
+          scan: filesystem
+          path: .
+          extra_args: --only-verified
+
       - name: Tests
         run: pytest -q
 

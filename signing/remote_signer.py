@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 import requests
 
 from .base import SignedTx, Signer
+from .intents import build_evm_tx_intent
 
 
 @dataclass(frozen=True)
@@ -39,21 +40,29 @@ class RemoteSigner(Signer):
         if not url:
             raise ValueError(f"{url_env} environment variable not set")
         self._base_url = url.rstrip("/")
+        self._cached_address: Optional[str] = None
 
     def get_address(self) -> str:
         # Optional endpoint: /address
         timeout = float(os.getenv("HTTP_TIMEOUT_SEC", "10"))
+        if self._cached_address:
+            return self._cached_address
         r = requests.get(f"{self._base_url}/address", timeout=timeout)
         r.raise_for_status()
         data = r.json()
         addr = str(data.get("address") or "").strip()
         if not addr:
             raise ValueError("Remote signer returned empty address")
+        self._cached_address = addr
         return addr
 
     def sign_transaction(self, tx: Dict[str, Any], *, chain_id: int | None = None) -> SignedTx:
         timeout = float(os.getenv("HTTP_TIMEOUT_SEC", "10"))
-        payload = {"tx": tx, "chain_id": chain_id}
+        # Phase 5: include explicit signing intent in the request schema (defense in depth).
+        # Remote signer implementations can ignore this field, but enterprise signers can use it
+        # for policy enforcement and safer audit logs.
+        intent = build_evm_tx_intent(tx, chain_id=chain_id)
+        payload = {"tx": tx, "chain_id": chain_id, "intent": intent.to_dict()}
         r = requests.post(f"{self._base_url}/sign_transaction", json=payload, timeout=timeout)
         r.raise_for_status()
         data = r.json() if isinstance(r.headers.get("content-type", ""), str) else json.loads(r.text)

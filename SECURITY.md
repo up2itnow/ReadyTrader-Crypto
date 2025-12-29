@@ -12,4 +12,8 @@ Please report details privately with:
 ### Scope Notes
 - This project can be configured for **live trading** (`PAPER_MODE=false`). Keep secrets out of source control.
 - This project uses a **signer abstraction**; prefer keystore-based signing over raw private keys.
+- For live trading deployments, review `docs/THREAT_MODEL.md` and follow least-privilege patterns.
+
+### Secret scanning guidance
+- See `.github/secret-scanning.md` for recommended GitHub settings and local hygiene.
 

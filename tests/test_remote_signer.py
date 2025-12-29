@@ -31,4 +31,8 @@ def test_remote_signer_get_address_and_sign():
                 signed = s.sign_transaction(tx, chain_id=1)
                 assert signed.rawTransaction == bytes.fromhex("deadbeef")
                 post.assert_called()
+                args, kwargs = post.call_args
+                payload = kwargs.get("json") or {}
+                assert payload.get("chain_id") == 1
+                assert "intent" in payload
 

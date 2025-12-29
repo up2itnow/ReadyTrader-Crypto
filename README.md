@@ -335,6 +335,8 @@ Example `config_json`:
 - `docs/ERRORS.md`: common error codes and operator troubleshooting
 - `docs/EXCHANGES.md`: exchange capability matrix (Supported vs Experimental)
 - `docs/MARKETDATA.md`: market data routing, freshness scoring, plugins, and guardrails
+- `docs/THREAT_MODEL.md`: operator-focused threat model (live trading)
+- `docs/CUSTODY.md`: key custody + rotation guidance
 - `docs/POSITIONING.md`: credibility-safe marketing + messaging
 - `RELEASE_READINESS_CHECKLIST.md`: what must be green before distribution
 - `ROADMAP_10_OF_10.md`: phased plan to reach “10/10” maturity

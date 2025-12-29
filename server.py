@@ -53,6 +53,8 @@ from rate_limiter import FixedWindowRateLimiter, RateLimitError
 from recommendations import recommend_settings as _recommend_settings
 from risk_manager import RiskGuardian
 from signing import get_signer
+from signing.intents import build_evm_tx_intent
+from signing.policy import SignerPolicyViolation
 from stress_test_engine import run_synthetic_stress_test as _run_synth_stress
 
 load_dotenv()
@@ -410,170 +412,163 @@ def _fetch_balance(address: str, chain: str = "ethereum") -> str:
         return f"Error fetching balance directly: {str(e)}"
 
 def _transfer_eth(to_address: str, amount: float, chain: str = "ethereum") -> str:
-    try:
-        w3 = _get_web3(chain)
-        signer = get_signer()
-        policy_engine.validate_signer_address(address=signer.get_address())
-        
-        if not w3.is_address(to_address):
-            return f"Invalid address format: {to_address}"
-            
-        to_address = w3.to_checksum_address(to_address)
-        amount_wei = w3.to_wei(amount, 'ether')
-        
-        from_address = w3.to_checksum_address(signer.get_address())
-        nonce = w3.eth.get_transaction_count(from_address)
-        
-        # Build transaction
-        tx = {
-            'nonce': nonce,
-            'to': to_address,
-            'value': amount_wei,
-            'gas': 21000,
-            'gasPrice': w3.eth.gas_price,
-            'chainId': w3.eth.chain_id
-        }
-        
-        # Sign transaction
-        signed_tx = signer.sign_transaction(tx, chain_id=w3.eth.chain_id)
-        
-        # Send transaction (LIVE)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        return f"Transaction sent! Hash: {w3.to_hex(tx_hash)}"
-        
-    except Exception as e:
-        return f"Error executing transfer: {str(e)}"
+    """
+    Live native transfer helper.
+
+    IMPORTANT: this function raises on failure so the MCP tool wrapper can return structured JSON errors.
+    """
+    w3 = _get_web3(chain)
+    signer = get_signer()
+    policy_engine.validate_signer_address(address=signer.get_address())
+
+    if not w3.is_address(to_address):
+        raise ValueError(f"Invalid address format: {to_address}")
+
+    to_checksum = w3.to_checksum_address(to_address)
+    amount_wei = w3.to_wei(amount, "ether")
+
+    from_address = w3.to_checksum_address(signer.get_address())
+    nonce = w3.eth.get_transaction_count(from_address)
+
+    tx = {
+        "nonce": nonce,
+        "to": to_checksum,
+        "value": int(amount_wei),
+        "gas": 21000,
+        "gasPrice": int(w3.eth.gas_price),
+        "chainId": int(w3.eth.chain_id),
+    }
+
+    intent = build_evm_tx_intent(tx, chain_id=int(w3.eth.chain_id))
+    policy_engine.validate_sign_tx(
+        chain_id=int(w3.eth.chain_id),
+        to_address=to_checksum,
+        value_wei=int(intent.value_wei or 0),
+        gas=int(intent.gas or 0),
+        gas_price_wei=int(intent.gas_price_wei or 0),
+        data_hex=intent.data_hex,
+    )
+
+    signed_tx = signer.sign_transaction(tx, chain_id=w3.eth.chain_id)
+    tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+    return f"Transaction sent! Hash: {w3.to_hex(tx_hash)}"
 
 
 
 def _swap_tokens(from_token: str, to_token: str, amount: float, chain: str = "ethereum") -> str:
-    """Real DEX Swap using 1inch API."""
-    try:
-        # 1. Resolve Tokens
-        from_address = dex_handler.resolve_token(chain, from_token)
-        to_address = dex_handler.resolve_token(chain, to_token)
-        
-        if not from_address or not to_address:
-            return f"Error: Could not resolve token addresses for {from_token} or {to_token} on {chain}."
+    """
+    Real DEX swap using 1inch API.
 
-        w3 = _get_web3(chain)
-        signer = get_signer()
-        policy_engine.validate_signer_address(address=signer.get_address())
-        wallet_address = signer.get_address()
-        
-        # 2. Get Quote (mostly to get decimals/units)
-        # We need 'amount' in atomic units.
-        # Use 1inch Quote to get decimals first? 
-        # Or blindly trust 18? No. 
-        # Let's assume standard ERC20 check IF we had web3 contract access.
-        # For efficiency, let's call Quote with a tiny amount (1 unit) to get token decimals from response?
-        # Better: Quote requires amount. 1inch token API exists but let's try to 'guess' or use standard.
-        # Actually 1inch Quote API response includes "fromToken" -> "decimals".
-        # But we need to send the Input Amount in atomic units to GET the quote.
-        # Catch 22.
-        # Solution: Use simple hardcoded decimals for mapped tokens, or fetch from chain for others.
-        
-        # Simple Logic for known tokens:
-        decimals = 18
-        if from_token.upper() in ["USDC", "USDT"]:
-             decimals = 6
-        elif from_token.upper() == "WBTC":
-             decimals = 8
-             
-        amount_wei = int(amount * (10 ** decimals))
-        
-        # 3. Check Allowance (Skip for ETH)
-        if from_address.lower() != "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee":
-            allowance_data = dex_handler.check_allowance(chain, from_address, wallet_address)
-            if "allowance" in allowance_data:
-                current_allowance = int(allowance_data['allowance'])
-                if current_allowance < amount_wei:
-                    # Need Approve
-                    approve_res = dex_handler.get_approve_tx(chain, from_address, str(amount_wei))
-                    if "data" in approve_res:
-                         # Phase 1: Router/spender allowlist enforcement (approval spender)
-                         try:
-                              policy_engine.validate_router_address(
-                                   chain=chain,
-                                   router_address=str(approve_res.get("to", "")),
-                                   context={"stage": "approve", "token": from_token},
-                              )
-                         except PolicyError as e:
-                              return f"PolicyError({e.code}): {e.message}"
-                         # Send Approve TX
-                         tx = {
-                            'to': approve_res['to'],
-                            'data': approve_res['data'],
-                            'value': int(approve_res.get('value', 0)),
-                            'gasPrice': w3.eth.gas_price, # Use simple gas price or 1inch gas price
-                            'nonce': w3.eth.get_transaction_count(wallet_address),
-                            'chainId': w3.eth.chain_id
-                         }
-                         # Estimate Gas
-                         try:
-                            tx["gas"] = w3.eth.estimate_gas({k: v for k, v in tx.items() if k != "chainId"})
-                         except Exception:
-                            tx["gas"] = 100000  # Fallback
-                            
-                         signed = signer.sign_transaction(tx, chain_id=w3.eth.chain_id)
-                         tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
-                         # Wait for it? 
-                         # For a synchronized tool, we should wait.
-                         w3.eth.wait_for_transaction_receipt(tx_hash)
-                    else:
-                        return f"Error building Approve TX: {approve_res}"
-            else:
-                 return f"Error checking allowance: {allowance_data}"
+    IMPORTANT: this function raises on failure so the MCP tool wrapper can return structured JSON errors.
+    """
+    # 1) Resolve tokens
+    from_address = dex_handler.resolve_token(chain, from_token)
+    to_address = dex_handler.resolve_token(chain, to_token)
+    if not from_address or not to_address:
+        raise ValueError(f"Could not resolve token addresses for {from_token} or {to_token} on {chain}.")
 
-        # 4. Build Swap TX
-        slippage = float(os.getenv("DEX_SLIPPAGE_PCT", "1.0"))
-        if slippage <= 0:
-            slippage = 1.0
-        swap_res = dex_handler.build_swap_tx(
-            chain,
-            from_address,
-            to_address,
-            str(amount_wei),
-            wallet_address,
-            slippage=slippage,
-        )
-        if "tx" not in swap_res:
-            return f"Error querying Swap API: {swap_res}"
-            
-        tx_data = swap_res['tx']
-        # Phase 1: Router allowlist enforcement (swap router)
-        try:
+    w3 = _get_web3(chain)
+    signer = get_signer()
+    policy_engine.validate_signer_address(address=signer.get_address())
+    wallet_address = signer.get_address()
+
+    # 2) Amount atomic units (best-effort known-token decimals)
+    decimals = 18
+    if from_token.upper() in ["USDC", "USDT"]:
+        decimals = 6
+    elif from_token.upper() == "WBTC":
+        decimals = 8
+    amount_wei = int(amount * (10**decimals))
+
+    # 3) Allowance + approve (skip for native ETH placeholder)
+    if from_address.lower() != "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee":
+        allowance_data = dex_handler.check_allowance(chain, from_address, wallet_address)
+        if "allowance" not in allowance_data:
+            raise ValueError(f"Error checking allowance: {allowance_data}")
+        current_allowance = int(allowance_data["allowance"])
+        if current_allowance < amount_wei:
+            approve_res = dex_handler.get_approve_tx(chain, from_address, str(amount_wei))
+            if "data" not in approve_res:
+                raise ValueError(f"Error building approve tx: {approve_res}")
             policy_engine.validate_router_address(
                 chain=chain,
-                router_address=str(tx_data.get("to", "")),
-                context={"stage": "swap", "from_token": from_token, "to_token": to_token},
+                router_address=str(approve_res.get("to", "")),
+                context={"stage": "approve", "token": from_token},
             )
-        except PolicyError as e:
-            return f"PolicyError({e.code}): {e.message}"
-        
-        # Construct Web3 TX
-        tx = {
-            'to': tx_data['to'],
-            'data': tx_data['data'],
-            'value': int(tx_data['value']),
-            'gasPrice': int(tx_data['gasPrice']),
-            'nonce': w3.eth.get_transaction_count(wallet_address),
-            'chainId': w3.eth.chain_id
-        }
-        # Gas might be in tx_data or need estimate
-        if 'gas' in tx_data:
-             tx['gas'] = int(tx_data['gas'])
-        else:
-             tx['gas'] = w3.eth.estimate_gas({k:v for k,v in tx.items() if k != 'chainId'})
+            tx = {
+                "to": approve_res["to"],
+                "data": approve_res["data"],
+                "value": int(approve_res.get("value", 0)),
+                "gasPrice": int(w3.eth.gas_price),
+                "nonce": int(w3.eth.get_transaction_count(wallet_address)),
+                "chainId": int(w3.eth.chain_id),
+            }
+            try:
+                tx["gas"] = int(w3.eth.estimate_gas({k: v for k, v in tx.items() if k != "chainId"}))
+            except Exception:
+                tx["gas"] = 100000
 
-        # 5. Sign & Send
-        signed_tx = signer.sign_transaction(tx, chain_id=w3.eth.chain_id)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        
-        return f"Swap Sent! {amount} {from_token} -> {to_token}. Hash: {w3.to_hex(tx_hash)}"
+            intent = build_evm_tx_intent(tx, chain_id=int(w3.eth.chain_id))
+            policy_engine.validate_sign_tx(
+                chain_id=int(w3.eth.chain_id),
+                to_address=str(tx.get("to") or ""),
+                value_wei=int(intent.value_wei or 0),
+                gas=int(intent.gas or 0),
+                gas_price_wei=int(intent.gas_price_wei or 0),
+                data_hex=intent.data_hex,
+            )
+            signed = signer.sign_transaction(tx, chain_id=w3.eth.chain_id)
+            tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
+            w3.eth.wait_for_transaction_receipt(tx_hash)
 
-    except Exception as e:
-        return f"Error executing swap: {str(e)}"
+    # 4) Build swap tx
+    slippage = float(os.getenv("DEX_SLIPPAGE_PCT", "1.0"))
+    if slippage <= 0:
+        slippage = 1.0
+    swap_res = dex_handler.build_swap_tx(
+        chain,
+        from_address,
+        to_address,
+        str(amount_wei),
+        wallet_address,
+        slippage=slippage,
+    )
+    if "tx" not in swap_res:
+        raise ValueError(f"Error querying swap API: {swap_res}")
+
+    tx_data = swap_res["tx"]
+    policy_engine.validate_router_address(
+        chain=chain,
+        router_address=str(tx_data.get("to", "")),
+        context={"stage": "swap", "from_token": from_token, "to_token": to_token},
+    )
+
+    tx = {
+        "to": tx_data["to"],
+        "data": tx_data["data"],
+        "value": int(tx_data["value"]),
+        "gasPrice": int(tx_data["gasPrice"]),
+        "nonce": int(w3.eth.get_transaction_count(wallet_address)),
+        "chainId": int(w3.eth.chain_id),
+    }
+    if "gas" in tx_data:
+        tx["gas"] = int(tx_data["gas"])
+    else:
+        tx["gas"] = int(w3.eth.estimate_gas({k: v for k, v in tx.items() if k != "chainId"}))
+
+    intent = build_evm_tx_intent(tx, chain_id=int(w3.eth.chain_id))
+    policy_engine.validate_sign_tx(
+        chain_id=int(w3.eth.chain_id),
+        to_address=str(tx.get("to") or ""),
+        value_wei=int(intent.value_wei or 0),
+        gas=int(intent.gas or 0),
+        gas_price_wei=int(intent.gas_price_wei or 0),
+        data_hex=intent.data_hex,
+    )
+
+    signed_tx = signer.sign_transaction(tx, chain_id=w3.eth.chain_id)
+    tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+    return f"Swap Sent! {amount} {from_token} -> {to_token}. Hash: {w3.to_hex(tx_hash)}"
 
 # --- MCP Tools ---
 
@@ -871,6 +866,8 @@ def transfer_eth(to_address: str, amount: float, chain: str = "ethereum") -> str
         return _json_ok({"mode": "live", "chain": chain, "result": _transfer_eth(to_address, amount, chain)})
     except PolicyError as e:
         return _json_err(e.code, e.message, e.data)
+    except SignerPolicyViolation as e:
+        return _json_err(e.code, e.message, e.data)
     except Exception as e:
         return _json_err("transfer_error", str(e))
 
@@ -1071,6 +1068,8 @@ def _tool_swap_tokens(
         res = _swap_tokens(from_token, to_token, amount, chain)
         return _json_ok({"mode": "live", "venue": "dex", "chain": chain, "result": res})
     except PolicyError as e:
+        return _json_err(e.code, e.message, e.data)
+    except SignerPolicyViolation as e:
         return _json_err(e.code, e.message, e.data)
     except Exception as e:
         return _json_err("swap_error", str(e))
@@ -2406,6 +2405,15 @@ def _tool_confirm_execution(request_id: str, confirm_token: str) -> str:
             w3 = _get_web3(chain)
             signer = get_signer()
             policy_engine.validate_signer_address(address=signer.get_address())
+            intent = build_evm_tx_intent(tx, chain_id=int(w3.eth.chain_id))
+            policy_engine.validate_sign_tx(
+                chain_id=int(w3.eth.chain_id),
+                to_address=str(tx.get("to") or ""),
+                value_wei=int(intent.value_wei or 0),
+                gas=int(intent.gas or 0),
+                gas_price_wei=int(intent.gas_price_wei or 0),
+                data_hex=intent.data_hex,
+            )
             signed = signer.sign_transaction(tx, chain_id=int(w3.eth.chain_id))
             tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
             return _json_ok({"request_id": request_id, "kind": kind, "tx_hash": w3.to_hex(tx_hash)})
@@ -2416,6 +2424,15 @@ def _tool_confirm_execution(request_id: str, confirm_token: str) -> str:
             w3 = _get_web3(chain)
             signer = get_signer()
             policy_engine.validate_signer_address(address=signer.get_address())
+            intent = build_evm_tx_intent(tx, chain_id=int(w3.eth.chain_id))
+            policy_engine.validate_sign_tx(
+                chain_id=int(w3.eth.chain_id),
+                to_address=str(tx.get("to") or ""),
+                value_wei=int(intent.value_wei or 0),
+                gas=int(intent.gas or 0),
+                gas_price_wei=int(intent.gas_price_wei or 0),
+                data_hex=intent.data_hex,
+            )
             signed = signer.sign_transaction(tx, chain_id=int(w3.eth.chain_id))
             tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
             return _json_ok({"request_id": request_id, "kind": kind, "tx_hash": w3.to_hex(tx_hash)})
@@ -2452,6 +2469,8 @@ def _tool_confirm_execution(request_id: str, confirm_token: str) -> str:
 
         return _json_err("unknown_kind", "Unknown execution kind.", {"request_id": request_id, "kind": kind})
     except PolicyError as e:
+        return _json_err(e.code, e.message, e.data)
+    except SignerPolicyViolation as e:
         return _json_err(e.code, e.message, e.data)
     except Exception as e:
         return _json_err("execution_failed", str(e), {"request_id": request_id, "kind": prop.kind})

@@ -28,6 +28,32 @@ def _env_float(name: str, default: Optional[float] = None) -> Optional[float]:
         return default
 
 
+def _parse_int_set(value: Optional[str]) -> Set[int]:
+    out: Set[int] = set()
+    if not value:
+        return out
+    for part in value.split(","):
+        s = part.strip()
+        if not s:
+            continue
+        is_hex = s.lower().startswith("0x") and all(c in "0123456789abcdef" for c in s[2:].lower())
+        is_dec = s.isdigit() or (s.startswith("-") and s[1:].isdigit())
+        if not (is_hex or is_dec):
+            continue
+        out.add(int(s, 0))
+    return out
+
+
+def _env_int(name: str, default: Optional[int] = None) -> Optional[int]:
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return int(raw, 0)
+    except Exception:
+        return default
+
+
 class PolicyEngine:
     """
     Phase 1 policy enforcement for live execution.
@@ -162,6 +188,96 @@ class PolicyEngine:
                 code="signer_address_not_allowed",
                 message="Signer address is not allowlisted.",
                 data={"address": address, "allow_signer_addresses": sorted(allow)},
+            )
+
+    def validate_sign_tx(
+        self,
+        *,
+        chain_id: int | None,
+        to_address: str | None,
+        value_wei: int | None,
+        gas: int | None,
+        gas_price_wei: int | None,
+        data_hex: str | None,
+    ) -> None:
+        """
+        Phase 5: signer-side intent guardrails (defense in depth).
+
+        Defaults are permissive unless env vars are set.
+
+        Env:
+        - ALLOW_SIGN_CHAIN_IDS (csv ints)
+        - ALLOW_SIGN_TO_ADDRESSES (csv addresses)
+        - MAX_SIGN_VALUE_WEI (int)
+        - MAX_SIGN_GAS (int)
+        - MAX_SIGN_GAS_PRICE_WEI (int)
+        - MAX_SIGN_DATA_BYTES (int)
+        - DISALLOW_SIGN_CONTRACT_CREATION (true/false)
+        """
+        allow_chain_ids = _parse_int_set(os.getenv("ALLOW_SIGN_CHAIN_IDS"))
+        if allow_chain_ids and chain_id is not None and int(chain_id) not in allow_chain_ids:
+            raise PolicyError(
+                code="sign_chain_id_not_allowed",
+                message="chain_id is not allowlisted for signing.",
+                data={"chain_id": int(chain_id), "allow_sign_chain_ids": sorted(allow_chain_ids)},
+            )
+
+        allow_to = _parse_csv_set(os.getenv("ALLOW_SIGN_TO_ADDRESSES"))
+        if allow_to and to_address and to_address.strip().lower() not in allow_to:
+            raise PolicyError(
+                code="sign_to_not_allowed",
+                message="Recipient/contract address is not allowlisted for signing.",
+                data={"to_address": to_address, "allow_sign_to_addresses": sorted(allow_to)},
+            )
+
+        max_value = _env_int("MAX_SIGN_VALUE_WEI", None)
+        if max_value is not None and (value_wei or 0) > int(max_value):
+            raise PolicyError(
+                code="sign_value_too_large",
+                message="Transaction value exceeds MAX_SIGN_VALUE_WEI.",
+                data={"value_wei": int(value_wei or 0), "max_sign_value_wei": int(max_value)},
+            )
+
+        max_gas = _env_int("MAX_SIGN_GAS", None)
+        if max_gas is not None and (gas or 0) > int(max_gas):
+            raise PolicyError(
+                code="sign_gas_too_large",
+                message="Transaction gas exceeds MAX_SIGN_GAS.",
+                data={"gas": int(gas or 0), "max_sign_gas": int(max_gas)},
+            )
+
+        max_gp = _env_int("MAX_SIGN_GAS_PRICE_WEI", None)
+        if max_gp is not None and (gas_price_wei or 0) > int(max_gp):
+            raise PolicyError(
+                code="sign_gas_price_too_large",
+                message="Transaction gasPrice exceeds MAX_SIGN_GAS_PRICE_WEI.",
+                data={"gas_price_wei": int(gas_price_wei or 0), "max_sign_gas_price_wei": int(max_gp)},
+            )
+
+        max_data = _env_int("MAX_SIGN_DATA_BYTES", None)
+        if max_data is not None and data_hex is not None:
+            s = str(data_hex).strip()
+            if s.startswith("0x"):
+                s = s[2:]
+            data_bytes = len(s) // 2
+            if data_bytes > int(max_data):
+                raise PolicyError(
+                    code="sign_data_too_large",
+                    message="Transaction calldata exceeds MAX_SIGN_DATA_BYTES.",
+                    data={"data_bytes": data_bytes, "max_sign_data_bytes": int(max_data)},
+                )
+
+        disallow_create = (os.getenv("DISALLOW_SIGN_CONTRACT_CREATION") or "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "y",
+        }
+        if disallow_create and not to_address:
+            raise PolicyError(
+                code="sign_contract_creation_not_allowed",
+                message="Contract creation tx is disallowed by policy.",
+                data={},
             )
 
     def validate_cex_order(
