@@ -1,3 +1,13 @@
+"""
+Binance private user data streams (Phase 2.5).
+
+This module implements an **opt-in** background websocket client for Binance user updates.
+It is intentionally best-effort and lightweight:
+- Not started automatically (keeps CI deterministic and avoids surprising network activity)
+- Uses Binance's `listenKey` mechanism (created via REST, then consumed via websocket)
+- Stores a simplified, non-sensitive subset of each event for operator visibility
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -58,6 +68,7 @@ class BinanceUserStream:
 
     def _create_listen_key(self) -> str:
         creds = load_cex_credentials("binance", require_auth=True)
+        # Binance uses different hosts/paths for spot vs futures (swap/perp).
         base = "https://api.binance.com"
         path = "/api/v3/userDataStream"
         if self.market_type in {"swap", "perp"}:
@@ -74,6 +85,7 @@ class BinanceUserStream:
 
     def _keepalive_listen_key(self, listen_key: str) -> None:
         creds = load_cex_credentials("binance", require_auth=True)
+        # Listen keys expire unless kept alive periodically via REST.
         base = "https://api.binance.com"
         path = "/api/v3/userDataStream"
         if self.market_type in {"swap", "perp"}:
@@ -113,6 +125,8 @@ class BinanceUserStream:
                         raw = await asyncio.wait_for(ws.recv(), timeout=30)
                         msg = json.loads(raw)
                         event_type = str(msg.get("e") or msg.get("eventType") or "")
+                        # Keep a compact representation for quick debugging / operator inspection.
+                        # We still include the raw message in case an operator needs full context.
                         simplified = {
                             "market_type": self.market_type,
                             "event_type": event_type,

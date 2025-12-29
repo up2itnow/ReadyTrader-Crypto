@@ -1,3 +1,15 @@
+"""
+Two-step execution proposal store (Phase 6).
+
+This is a small in-memory registry used when `EXECUTION_APPROVAL_MODE=approve_each`.
+Instead of executing immediately, the server returns a proposal:
+- `request_id`: lookup key
+- `confirm_token`: single-use token (replay protection)
+- `expires_at`: TTL deadline (prevents stale approvals)
+
+This store is deliberately non-persistent: all proposals are cleared on process restart.
+"""
+
 from __future__ import annotations
 
 import secrets

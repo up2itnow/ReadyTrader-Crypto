@@ -1,3 +1,19 @@
+"""
+Websocket-first market data streams (Phase 2.5).
+
+This module provides **opt-in** background websocket clients for public ticker streams:
+- Binance (spot + swap/perp)
+- Coinbase (spot)
+- Kraken (spot)
+
+Design notes:
+- Streams run in a dedicated background thread per exchange+market_type key and use an asyncio loop
+  within that thread (`asyncio.run`).
+- The network loops are intentionally excluded from unit tests. Instead, parser functions are unit-tested.
+- Parsed ticker snapshots are written into `InMemoryMarketDataStore` with short TTLs, so the MarketDataBus
+  can prefer websocket data when it is fresh, and fall back to CCXT REST when it is not.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -60,6 +76,9 @@ def _kraken_pair(symbol: str) -> str:
 def parse_binance_ticker_message(msg: Dict[str, Any], *, stream_to_symbol: Dict[str, str]) -> Optional[Dict[str, Any]]:
     """
     Parse a Binance combined-stream ticker message into a ticker snapshot dict.
+
+    Binance combined stream format:
+      {"stream":"btcusdt@ticker","data":{...}}
     """
     data = msg.get("data") if isinstance(msg, dict) else None
     if not isinstance(data, dict):
@@ -292,6 +311,7 @@ class WsStreamManager:
     def start(self, *, exchange: str, symbols: List[str], market_type: str = "spot") -> None:
         ex = (exchange or "").strip().lower()
         key = f"{ex}:{market_type}"
+        # Replace any existing stream for this (exchange, market_type) key to avoid duplicates.
         self.stop(exchange=ex, market_type=market_type)
         if ex == "binance":
             s = BinanceTickerStream(symbols=symbols, market_type=market_type, store=self._store)
