@@ -10,6 +10,9 @@ env/
 # Database (Paper Trading)
 paper.db
 
+# Demo / local artifacts (Phase 6)
+artifacts/
+
 # OS
 .DS_Store
 .clinerules/byterover-rules.md

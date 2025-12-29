@@ -22,6 +22,21 @@ This MCP (Model Context Protocol) Server provides a complete suite of cryptocurr
 
 ---
 
+## ⚡ 10-minute evaluation (Phase 6)
+
+Run both demos locally (no exchange keys, no RPC needed):
+
+```bash
+python examples/paper_quick_demo.py
+python examples/stress_test_demo.py
+```
+
+You’ll get exportable artifacts under `artifacts/demo_stress/` (gitignored).
+
+Prompt pack (copy/paste): `prompts/READYTRADER_PROMPT_PACK.md`.
+
+![ReadyTrader demo flow](docs/assets/demo-flow.svg)
+
 ## 🛠️ Installation & Setup
 
 ### Prerequisites
@@ -206,6 +221,8 @@ Market-data introspection:
 ### Option A: Agent Zero (Recommended)
 To give Agent Zero these powers, add the following to your **Agent Zero Settings** (or `agent.yaml`):
 
+Quick copy/paste file: `configs/agent_zero.mcp.yaml`.
+
 **Via User Interface:**
 1.  Go to **Settings** -> **MCP Servers**.
 2.  Add a new server:
@@ -227,10 +244,14 @@ mcp_servers:
       - "PAPER_MODE=true"
       - "readytrader"
 ```
+Prebuilt config: `configs/agent_zero.paper.yaml`.
 *Restart Agent Zero after saving.*
 
 ### Option B: Generic MCP Client (Claude Desktop, etc.)
 Add this to your `mcp-server-config.json`:
+
+Quick copy/paste file: `configs/claude_desktop.mcp-server-config.json`.
+
 ```json
 {
   "mcpServers": {
@@ -247,6 +268,7 @@ Add this to your `mcp-server-config.json`:
   }
 }
 ```
+Prebuilt config: `configs/claude_desktop.mcp.json`.
 
 ---
 
@@ -331,6 +353,7 @@ Example `config_json`:
 ---
 
 ## 📌 Project docs
+- `docs/README.md`: docs index / navigation
 - `docs/TOOLS.md`: complete tool catalog (generated from `server.py`)
 - `docs/ERRORS.md`: common error codes and operator troubleshooting
 - `docs/EXCHANGES.md`: exchange capability matrix (Supported vs Experimental)

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "readytrader": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "PAPER_MODE=true", "readytrader"]
+    }
+  }
+}
+

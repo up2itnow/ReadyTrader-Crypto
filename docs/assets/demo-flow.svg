@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="240" viewBox="0 0 980 240">
+  <rect width="980" height="240" fill="#0b1220"/>
+  <text x="40" y="55" fill="#e5e7eb" font-size="26" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial">
+    ReadyTrader — 10 minute evaluation flow
+  </text>
+
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial" font-size="16">
+    <rect x="40" y="90" width="260" height="90" rx="12" fill="#111827" stroke="#374151"/>
+    <text x="60" y="125" fill="#e5e7eb">1) Paper demo</text>
+    <text x="60" y="150" fill="#9ca3af">examples/paper_quick_demo.py</text>
+
+    <rect x="360" y="90" width="280" height="90" rx="12" fill="#111827" stroke="#374151"/>
+    <text x="380" y="125" fill="#e5e7eb">2) Stress test demo</text>
+    <text x="380" y="150" fill="#9ca3af">examples/stress_test_demo.py</text>
+
+    <rect x="700" y="90" width="240" height="90" rx="12" fill="#111827" stroke="#374151"/>
+    <text x="720" y="125" fill="#e5e7eb">3) Connect your agent</text>
+    <text x="720" y="150" fill="#9ca3af">Agent Zero / Claude</text>
+
+    <path d="M310 135 L350 135" stroke="#6b7280" stroke-width="3"/>
+    <polygon points="350,135 340,129 340,141" fill="#6b7280"/>
+
+    <path d="M650 135 L690 135" stroke="#6b7280" stroke-width="3"/>
+    <polygon points="690,135 680,129 680,141" fill="#6b7280"/>
+  </g>
+</svg>
+
