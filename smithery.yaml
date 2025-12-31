@@ -2,7 +2,7 @@ startCommand:
   type: stdio
   command: python
   args:
-    - server.py
+    - app/main.py
 name: ReadyTrader-Crypto
 description: >-
   A specialized bridge that turns your AI Agent into a professional crypto trading operator.

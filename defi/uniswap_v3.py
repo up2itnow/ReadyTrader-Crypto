@@ -1,7 +1,10 @@
-from typing import Dict, Any, Optional
-from web3 import Web3
 import json
-import time
+
+# Chain ID Constants
+ETHEREUM = 1
+BASE = 8453
+ARBITRUM = 42161
+OPTIMISM = 10
 
 # Minimal ABIs for Uniswap V3 Support
 UNI_V3_MANAGER_ABI = json.loads('''[
@@ -10,53 +13,51 @@ UNI_V3_MANAGER_ABI = json.loads('''[
 ]''')
 
 # Mapping of Chain ID -> Uniswap V3 NonfungiblePositionManager
-UNI_V3_MANAGERS = {
-    1: Web3.to_checksum_address("0xC36442b4a4522E871399CD717aBDD847Ab11FE88"),
-    8453: Web3.to_checksum_address("0x03a520b32C04BF3b764D891E199c905212ad23aD"),
-    11155111: Web3.to_checksum_address("0x1238536071E1c67f106BA4c023F01D927E238E1e"), # Sepolia example
-    84532: Web3.to_checksum_address("0x27F971cbC3C623e7456499682266D77990150825") # Base Sepolia example
+NONFUNGIBLE_POSITION_MANAGER = {
+    ETHEREUM: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
+    BASE: "0x03a520b32C04BF3bEEf7BEb72E919cf822EdC2f9",
+    ARBITRUM: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
+    OPTIMISM: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
 }
 
+
 class UniswapV3Client:
-    def __init__(self, w3: Web3, chain_id: int):
+    def __init__(self, w3, chain_id: int):
         self.w3 = w3
         self.chain_id = chain_id
-        self.manager_address = UNI_V3_MANAGERS.get(chain_id)
-        if not self.manager_address:
-            raise ValueError(f"Uniswap V3 Manager address not found for chain ID {chain_id}")
-        self.manager = self.w3.eth.contract(address=self.manager_address, abi=UNI_V3_MANAGER_ABI)
+        self.manager_address = NONFUNGIBLE_POSITION_MANAGER.get(chain_id)
+        if self.manager_address:
+            self.manager = w3.eth.contract(address=self.manager_address, abi=UNI_V3_MANAGER_ABI)
+        else:
+            self.manager = None
 
-    def build_mint_tx(self, params: Dict[str, Any], from_address: str) -> Dict[str, Any]:
-        # deadline defaults to 20 mins
-        deadline = params.get("deadline", int(time.time()) + 1200)
-        
-        mint_params = (
-            Web3.to_checksum_address(params["token0"]),
-            Web3.to_checksum_address(params["token1"]),
-            int(params["fee"]),
-            int(params["tickLower"]),
-            int(params["tickUpper"]),
-            int(params["amount0Desired"]),
-            int(params["amount1Desired"]),
-            int(params["amount0Min"]),
-            int(params["amount1Min"]),
-            Web3.to_checksum_address(params.get("recipient", from_address)),
-            deadline
+    def mint_position(self, token0: str, token1: str, fee: int, amount0: int, amount1: int, recipient: str) -> dict:
+        """
+        Build a transaction to mint a new position (add liquidity).
+        NOTE: This is a simplified example. In production, tick calculation is complex.
+        """
+        if not self.manager:
+            raise ValueError(f"Uniswap V3 not supported on chain {self.chain_id}")
+
+        # Params for MintParams struct
+        # (token0, token1, fee, tickLower, tickUpper, amount0Desired, amount1Desired, amount0Min, amount1Min, recipient, deadline)
+        params = (
+            token0,
+            token1,
+            fee,
+            -887272,  # min tick (full range) - illustrative only
+            887272,   # max tick (full range)
+            amount0,
+            amount1,
+            0,        # min0 (slippage protection omitted for brevity)
+            0,        # min1
+            recipient,
+            9999999999 # deadline
         )
         
-        return self.manager.functions.mint(mint_params).build_transaction({
-            "from": Web3.to_checksum_address(from_address),
-            "gas": 500000 # Stub gas limit
-        })
-
-    def build_collect_tx(self, token_id: int, recipient: str, from_address: str) -> Dict[str, Any]:
-        collect_params = (
-            int(token_id),
-            Web3.to_checksum_address(recipient),
-            2**127, # amount0Max (type uint128; using large value to collect all)
-            2**127  # amount1Max
-        )
-        return self.manager.functions.collect(collect_params).build_transaction({
-            "from": Web3.to_checksum_address(from_address),
-            "gas": 300000
+        return self.manager.functions.mint(params).build_transaction({
+            "from": recipient,
+            "nonce": self.w3.eth.get_transaction_count(recipient),
+            "gas": 500000,
+            "gasPrice": self.w3.eth.gas_price
         })

@@ -26,4 +26,4 @@ RUN mkdir -p data
 # Entry point: Run the MCP server. 
 # Optional Sidecar: If you want to run the FastAPI server, use 
 # 'uvicorn api_server:app --host 0.0.0.0 --port 8000'
-CMD ["fastmcp", "run", "server.py"]
+CMD ["python", "app/main.py"]

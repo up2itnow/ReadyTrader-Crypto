@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 import os
-import sys
 import shutil
+import subprocess  # nosec
+import sys
+from typing import List
+
 import requests
-import subprocess # nosec
-from typing import List, Dict
 
 # Color codes
 GREEN = "\033[92m"
@@ -91,7 +92,7 @@ def check_keys():
 def main():
     print_banner()
     
-    has_env = check_env_file()
+    check_env_file()
     missing_deps = check_dependencies()
     
     if missing_deps:

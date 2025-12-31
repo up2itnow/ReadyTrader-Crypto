@@ -1,10 +1,11 @@
-import sqlite3
-import os
-import time
 import json
+import os
 import secrets
+import sqlite3
+import time
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 
 @dataclass
 class MarketInsight:
@@ -45,7 +46,7 @@ class InsightStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_insight_symbol ON insights(symbol)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_insight_expiry ON insights(expires_at_ms)")
 
-    def post_insight(self, symbol: str, agent_id: str, signal: str, confidence: float, reasoning: str, ttl_seconds: int = 3600, meta: Optional[Dict[str, Any]] = None) -> MarketInsight:
+    def post_insight(self, symbol: str, agent_id: str, signal: str, confidence: float, reasoning: str, ttl_seconds: int = 3600, meta: Optional[Dict[str, Any]] = None) -> MarketInsight:  # noqa: E501
         now_ms = int(time.time() * 1000)
         insight_id = secrets.token_hex(8)
         expires_at_ms = now_ms + (ttl_seconds * 1000)

@@ -1,16 +1,18 @@
 import asyncio
-import os
 import json
-import logging
+import os
 from typing import Set
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from app.core.config import settings
+
 # Import core components from the main server
-import server
+from app.core.container import global_container
 from marketdata.store import TickerSnapshot
-from observability import log_event, build_log_context
+from observability import build_log_context, log_event
 
 # Initial context
 API_CTX = build_log_context(tool="api_server")
@@ -62,7 +64,7 @@ async def broadcast_all(payload: dict):
         active_connections.remove(ws)
 
 # Subscribe to ticker updates from the WebSocket store
-server.marketdata_ws_store.subscribe(broadcast_tick)
+global_container.marketdata_ws_store.subscribe(broadcast_tick)
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -79,14 +81,14 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "mode": "paper" if server.PAPER_MODE else "live"}
+    return {"status": "ok", "mode": "paper" if settings.PAPER_MODE else "live"}
 
 @app.get("/api/pending-approvals")
 async def get_pending_approvals():
     """
     Return list of trades awaiting manual approval.
     """
-    return server.execution_store.list_pending()
+    return global_container.execution_store.list_pending()
 
 class ApprovalRequest(BaseModel):
     request_id: str
@@ -100,20 +102,10 @@ async def approve_trade(req: ApprovalRequest):
     """
     try:
         if req.approve:
-            # This logic mimics confirm_execution tool in server.py
-            prop = server.execution_store.get(req.request_id)
-            if not prop:
-                raise HTTPException(status_code=404, detail="Proposal not found")
-            
-            # Since server.py's confirm_execution is a tool, we can either call the tool 
-            # or replicate the logic. Replicating the core execution logic:
-            result_json = server._tool_confirm_execution(req.request_id, req.confirm_token)
-            result = json.loads(result_json)
-            if not result.get("ok"):
-                raise HTTPException(status_code=400, detail=result.get("error", {}).get("message", "Approval failed"))
-            return result
+            # TODO: Re-implement approval execution logic via global_container tools
+            raise HTTPException(status_code=501, detail="Approval execution not yet ported to modular app")
         else:
-            success = server.execution_store.cancel(req.request_id)
+            success = global_container.execution_store.cancel(req.request_id)
             return {"ok": success}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -123,9 +115,9 @@ async def get_portfolio():
     """
     Get current portfolio state (paper or live).
     """
-    if server.PAPER_MODE:
-        balances = server.paper_engine.get_balances("agent_zero")
-        pnl = server.paper_engine.get_risk_metrics("agent_zero")
+    if settings.PAPER_MODE:
+        balances = global_container.paper_engine.get_balances("agent_zero")
+        pnl = global_container.paper_engine.get_risk_metrics("agent_zero")
         return {"balances": balances, "metrics": pnl}
     else:
         # For live mode, we'd need to query the wallet/CEX

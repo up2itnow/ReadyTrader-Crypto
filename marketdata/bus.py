@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging  # Added logging
 import os
 import threading
 import time
@@ -9,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .providers import MarketDataProvider
 
+logger = logging.getLogger(__name__) # Setup logger
 
 @dataclass(frozen=True)
 class MarketDataResult:
@@ -176,6 +178,8 @@ class MarketDataBus:
                     break
             except Exception as e:
                 last_err = e
+                # Explicit logging for failover
+                logger.warning(f"MarketDataBus: Provider {pid} failed for {sym}: {e}. Trying next provider...")
                 candidates.append(
                     {
                         "provider_id": pid,
@@ -287,6 +291,7 @@ class MarketDataBus:
                 )
             except Exception as e:
                 last_err = e
+                logger.warning(f"MarketDataBus: Provider {p.provider_id} OHLCV failed: {e}. Trying next...")
                 continue
         raise ValueError(f"All providers failed to fetch OHLCV for {symbol}. Last error: {last_err}")
 
@@ -310,4 +315,3 @@ class MarketDataBus:
                     }
                 )
         return {"providers": providers}
-

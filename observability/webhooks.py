@@ -1,7 +1,8 @@
 import os
-import json
+from typing import Any, Dict, Optional
+
 import requests
-from typing import Optional, Dict, Any
+
 
 class WebhookManager:
     """

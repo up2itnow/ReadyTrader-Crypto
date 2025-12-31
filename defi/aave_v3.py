@@ -1,6 +1,7 @@
-from typing import Dict, Any, Optional
-from web3 import Web3
 import json
+from typing import Any, Dict
+
+from web3 import Web3
 
 # Minimal ABIs for Phase 3 support
 AAVE_V3_POOL_ABI = json.loads('''[
