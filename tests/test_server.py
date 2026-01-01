@@ -21,23 +21,42 @@ def test_swap_tokens_real():
             with patch.object(global_container, 'policy_engine'):
                 # Setup
                 settings.PAPER_MODE = False
+                settings.LIVE_TRADING_ENABLED = True
+                settings.TRADING_HALTED = False
+                settings.EXECUTION_MODE = "dex"
+
                 mock_dex.resolve_token.side_effect = ["0xFROM", "0xTO"]
-                mock_dex.build_swap_tx.return_value = {'tx': {'to': '0xROUTER'}}
+                mock_dex.build_swap_tx.return_value = {
+                    "tx": {
+                        "to": "0x0000000000000000000000000000000000000002",
+                        "data": "0x",
+                        "value": "0x0",
+                        "gas": "0x5208",
+                        "gasPrice": "0x3b9aca00",
+                    }
+                }
                 
                 signed_mock = MagicMock()
-                signed_mock.rawTransaction.hex.return_value = "0xHASH"
+                signed_mock.rawTransaction = b"\x01\x02"
                 mock_signer.sign_transaction.return_value = signed_mock
-                mock_signer.get_address.return_value = "0xUSER"
+                mock_signer.get_address.return_value = "0x0000000000000000000000000000000000000001"
                 
-                # Run
-                res_str = swap_tokens(from_token="USDC", to_token="WETH", amount=1.0, chain="ethereum")
-                res = json.loads(res_str)
+                # Avoid network: mock nonce fetch + broadcast + decimals lookup
+                with patch("app.tools.execution.get_web3") as mock_get_web3:
+                    mock_w3 = MagicMock()
+                    mock_w3.eth.get_transaction_count.return_value = 123
+                    mock_get_web3.return_value = mock_w3
+                    with patch("app.tools.execution.send_raw_transaction", return_value="0xHASH"):
+                        with patch("app.tools.execution.erc20_decimals", return_value=6):
+                            # Run
+                            res_str = swap_tokens(from_token="USDC", to_token="WETH", amount=1.0, chain="ethereum")
+                            res = json.loads(res_str)
                 
                 # Verify
                 assert res["ok"] is True
-                assert res["data"]["result"] == "Swap Sent!"
-                assert res["data"]["hash"] == "0xHASH" # The mock returns 0xHASH, code does hex()
-                # Actually code uses rawTransaction.hex().
+                assert res["data"]["mode"] == "live"
+                assert res["data"]["venue"] == "dex"
+                assert res["data"]["tx_hash"] == "0xHASH"
                 
 def test_place_cex_order_blocked_when_mode_dex():
     with patch.dict("os.environ", {"EXECUTION_MODE": "dex"}):

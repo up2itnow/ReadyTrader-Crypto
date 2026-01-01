@@ -16,7 +16,7 @@ export function useMarketData() {
     const [connected, setConnected] = useState(false);
     const socketRef = useRef<WebSocket | null>(null);
 
-    const connect = useCallback(() => {
+    const connect = useCallback(function connect() {
         // API port defaults to 8000
         const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws';
         const ws = new WebSocket(wsUrl);

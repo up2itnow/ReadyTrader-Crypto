@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import time
 from typing import Set
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -11,6 +12,9 @@ from app.core.config import settings
 
 # Import core components from the main server
 from app.core.container import global_container
+from app.tools.execution import place_cex_order, swap_tokens, transfer_eth
+from execution.cex_executor import CexExecutor
+from execution.evm import get_web3
 from marketdata.store import TickerSnapshot
 from observability import build_log_context, log_event
 
@@ -95,6 +99,8 @@ class ApprovalRequest(BaseModel):
     confirm_token: str
     approve: bool
 
+_approval_lock = asyncio.Lock()
+
 @app.post("/api/approve-trade")
 async def approve_trade(req: ApprovalRequest):
     """
@@ -102,8 +108,49 @@ async def approve_trade(req: ApprovalRequest):
     """
     try:
         if req.approve:
-            # TODO: Re-implement approval execution logic via global_container tools
-            raise HTTPException(status_code=501, detail="Approval execution not yet ported to modular app")
+            prop = global_container.execution_store.confirm(req.request_id, req.confirm_token)
+            # Avoid re-proposing while executing an already-approved action.
+            async with _approval_lock:
+                old_mode = settings.EXECUTION_APPROVAL_MODE
+                try:
+                    settings.EXECUTION_APPROVAL_MODE = "auto"
+                    payload = dict(prop.payload or {})
+                    idem = (payload.get("idempotency_key") or "").strip() or prop.request_id
+
+                    if prop.kind == "swap_tokens":
+                        res = swap_tokens(
+                            from_token=str(payload["from_token"]),
+                            to_token=str(payload["to_token"]),
+                            amount=float(payload["amount"]),
+                            chain=str(payload.get("chain") or "ethereum"),
+                            rationale=str(payload.get("rationale") or ""),
+                            idempotency_key=idem,
+                        )
+                    elif prop.kind == "transfer_eth":
+                        res = transfer_eth(
+                            to_address=str(payload["to_address"]),
+                            amount=float(payload["amount"]),
+                            chain=str(payload.get("chain") or "ethereum"),
+                            idempotency_key=idem,
+                        )
+                    elif prop.kind == "place_cex_order":
+                        res = place_cex_order(
+                            symbol=str(payload["symbol"]),
+                            side=str(payload["side"]),
+                            amount=float(payload["amount"]),
+                            order_type=str(payload.get("order_type") or "market"),
+                            price=float(payload["price"]) if payload.get("price") is not None else None,
+                            exchange=str(payload.get("exchange") or "binance"),
+                            market_type=str(payload.get("market_type") or "spot"),
+                            idempotency_key=idem,
+                        )
+                    else:
+                        raise HTTPException(status_code=400, detail=f"Unknown proposal kind: {prop.kind}")
+
+                    # Tool functions return JSON strings; convert to object for API output.
+                    return json.loads(res)
+                finally:
+                    settings.EXECUTION_APPROVAL_MODE = old_mode
         else:
             success = global_container.execution_store.cancel(req.request_id)
             return {"ok": success}
@@ -120,8 +167,35 @@ async def get_portfolio():
         pnl = global_container.paper_engine.get_risk_metrics("agent_zero")
         return {"balances": balances, "metrics": pnl}
     else:
-        # For live mode, we'd need to query the wallet/CEX
-        return {"error": "Live portfolio view not yet implemented in API"}
+        out = {
+            "mode": "live",
+            "ts": time.time(),
+            "wallet": {"address": global_container.signer.get_address()},
+            "onchain": {},
+            "cex": {},
+        }
+
+        # On-chain native balances (best-effort)
+        chains = [c.strip() for c in (os.getenv("PORTFOLIO_CHAINS") or "ethereum").split(",") if c.strip()]
+        for chain in chains:
+            try:
+                w3 = get_web3(chain)
+                addr = w3.to_checksum_address(out["wallet"]["address"])
+                bal = int(w3.eth.get_balance(addr))
+                out["onchain"][chain] = {"native_balance_wei": bal}
+            except Exception as e:
+                out["onchain"][chain] = {"error": str(e)}
+
+        # CEX balances (best-effort; only for exchanges with creds)
+        exchanges = [e.strip() for e in (os.getenv("PORTFOLIO_EXCHANGES") or "binance").split(",") if e.strip()]
+        for ex_id in exchanges:
+            try:
+                ex = CexExecutor(exchange_id=ex_id, market_type="spot", auth=True)
+                out["cex"][ex_id] = {"balance": ex.fetch_balance()}
+            except Exception as e:
+                out["cex"][ex_id] = {"error": str(e)}
+
+        return out
 
 if __name__ == "__main__":
     import uvicorn

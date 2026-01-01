@@ -11,7 +11,7 @@ addopts = "-q"
 [tool.ruff]
 line-length = 160
 target-version = "py312"
-extend-exclude = ["data/"]
+extend-exclude = ["data/", "vendor/", "frontend/", "frontend/node_modules/"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

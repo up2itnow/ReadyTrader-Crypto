@@ -39,7 +39,15 @@ class DexHandler:
         chain_map = self.TOKEN_MAP.get(chain.lower())
         if chain_map:
             return chain_map.get(symbol.upper())
-        return None  # Or assume it is an address if it looks like one?
+        # Allow raw EVM addresses as token identifiers (advanced usage).
+        s = (symbol or "").strip()
+        if s.startswith("0x") and len(s) == 42:
+            try:
+                int(s[2:], 16)
+                return s
+            except Exception:
+                return None
+        return None
     
     def _get_chain_id(self, chain: str) -> int:
         chains = {

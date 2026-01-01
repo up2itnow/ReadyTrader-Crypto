@@ -2,6 +2,8 @@ exclude_dirs:
   - tests
   - __pycache__
   - data
+  - vendor
+  - frontend
 
 skips:
   - B101

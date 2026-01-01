@@ -1,0 +1,48 @@
+services:
+  mpc-party-0:
+    build:
+      context: .
+      dockerfile: mpc_signer/Dockerfile
+    environment:
+      MPC_ROLE_INDEX: "0"
+      MPC_HTTP_LISTEN: "0.0.0.0:8787"
+      MPC_PARTY0_ADDR: "0.0.0.0:9787"
+      MPC_PARTY1_ADDR: "mpc-party-1:9787"
+      MPC_PEER_HTTP_URL: "http://mpc-party-1:8787"
+      MPC_CA_CERT: "/certs/ca.crt"
+      MPC_CERT: "/certs/party0.crt"
+      MPC_KEY: "/certs/party0.key"
+      MPC_PARTY0_CERT: "/certs/party0.crt"
+      MPC_PARTY1_CERT: "/certs/party1.crt"
+      MPC_KEYSHARE_PATH: "/data/mpc_keyshare.bin"
+    ports:
+      - "8787:8787"
+    volumes:
+      - ./mpc_signer/certs:/certs:ro
+      - mpc_party0_data:/data
+    depends_on:
+      - mpc-party-1
+
+  mpc-party-1:
+    build:
+      context: .
+      dockerfile: mpc_signer/Dockerfile
+    environment:
+      MPC_ROLE_INDEX: "1"
+      MPC_HTTP_LISTEN: "0.0.0.0:8787"
+      MPC_PARTY0_ADDR: "mpc-party-0:9787"
+      MPC_PARTY1_ADDR: "0.0.0.0:9787"
+      MPC_CA_CERT: "/certs/ca.crt"
+      MPC_CERT: "/certs/party1.crt"
+      MPC_KEY: "/certs/party1.key"
+      MPC_PARTY0_CERT: "/certs/party0.crt"
+      MPC_PARTY1_CERT: "/certs/party1.crt"
+      MPC_KEYSHARE_PATH: "/data/mpc_keyshare.bin"
+    volumes:
+      - ./mpc_signer/certs:/certs:ro
+      - mpc_party1_data:/data
+
+volumes:
+  mpc_party0_data:
+  mpc_party1_data:
+

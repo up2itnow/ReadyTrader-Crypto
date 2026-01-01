@@ -1,4 +1,5 @@
 from .base import SignedTx, Signer
+from .cb_mpc_2pc import CoinbaseMpc2pcSigner
 from .encrypted_keystore import EncryptedKeystoreSigner
 from .env_private_key import EnvPrivateKeySigner
 from .factory import get_signer
@@ -12,6 +13,7 @@ __all__ = [
     "EnvPrivateKeySigner",
     "EncryptedKeystoreSigner",
     "RemoteSigner",
+    "CoinbaseMpc2pcSigner",
     "get_signer",
     "EvmTxIntent",
     "build_evm_tx_intent",

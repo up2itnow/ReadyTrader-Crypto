@@ -14,4 +14,11 @@ RestrictedPython==8.1
 websockets==15.0.1
 feedparser==6.0.11
 fastapi==0.115.5
-uvicorn==0.32.1
+# fastmcp 2.14.1 requires uvicorn>=0.35
+uvicorn==0.35.0
+
+# MPC signer integration helpers (explicit deps; also installed transitively via web3/eth-account)
+eth-keys==0.7.0
+eth-utils==5.3.1
+rlp==4.1.0
+cryptography==46.0.3

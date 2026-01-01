@@ -4,6 +4,7 @@ import os
 from functools import lru_cache
 
 from .base import Signer
+from .cb_mpc_2pc import CoinbaseMpc2pcSigner
 from .encrypted_keystore import EncryptedKeystoreSigner
 from .env_private_key import EnvPrivateKeySigner
 from .policy import maybe_wrap_signer
@@ -19,6 +20,7 @@ def get_signer() -> Signer:
     - env_private_key (default): uses PRIVATE_KEY env var
     - keystore: uses KEYSTORE_PATH + KEYSTORE_PASSWORD
     - remote: uses SIGNER_REMOTE_URL (HTTP signer / sidecar)
+    - cb_mpc_2pc: delegates signing to a Coinbase cb-mpc 2-party signer service (MPC_SIGNER_URL)
     """
     signer_type = os.getenv("SIGNER_TYPE", "env_private_key").strip().lower()
     if signer_type == "env_private_key":
@@ -27,5 +29,7 @@ def get_signer() -> Signer:
         return maybe_wrap_signer(EncryptedKeystoreSigner())
     if signer_type == "remote":
         return maybe_wrap_signer(RemoteSigner())
+    if signer_type == "cb_mpc_2pc":
+        return maybe_wrap_signer(CoinbaseMpc2pcSigner())
     raise ValueError(f"Unsupported SIGNER_TYPE: {signer_type}")
 

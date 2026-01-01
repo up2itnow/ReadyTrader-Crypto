@@ -23,6 +23,11 @@ This document describes recommended custody patterns for ReadyTrader-Crypto when
 - Recommended for HSM/KMS-backed signing proxies.
 - ReadyTrader-Crypto includes explicit `intent` in signing requests (Phase 5) to enable safer signer-side policy.
 
+#### 4) `SIGNER_TYPE=cb_mpc_2pc` (Coinbase cb-mpc, self-hosted MPC)
+- Uses a 2-party MPC signer service (see `mpc_signer/`) configured via `MPC_SIGNER_URL`.
+- No private key exists in a single process; signing is distributed across two parties.
+- Recommended for “degen” multi-venue users who want a single wallet with strong compromise resistance.
+
 ### Defense in depth
 Use both layers when possible:
 - **PolicyEngine** allowlists:

@@ -1,33 +1,35 @@
 "use client";
 
-import { useMarketData } from '@/hooks/useMarketData';
-import { usePendingApprovals } from '@/hooks/usePendingApprovals';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { TrendingUp, AlertTriangle, ShieldCheck, Zap } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useMarketData } from "@/hooks/useMarketData";
+import { usePendingApprovals } from "@/hooks/usePendingApprovals";
+import { Area, AreaChart, ResponsiveContainer, Tooltip } from "recharts";
+import { ShieldCheck, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
 
 // Dummy data for the chart
 const dummyChartData = [
-  { time: '00:00', value: 45000 },
-  { time: '04:00', value: 45200 },
-  { time: '08:00', value: 44800 },
-  { time: '12:00', value: 46100 },
-  { time: '16:00', value: 45900 },
-  { time: '20:00', value: 47200 },
-  { time: '23:59', value: 48500 },
+  { time: "00:00", value: 45000 },
+  { time: "04:00", value: 45200 },
+  { time: "08:00", value: 44800 },
+  { time: "12:00", value: 46100 },
+  { time: "16:00", value: 45900 },
+  { time: "20:00", value: 47200 },
+  { time: "23:59", value: 48500 },
 ];
+
+type PortfolioResponse = Record<string, unknown>;
 
 export default function Dashboard() {
   const { tickers, connected } = useMarketData();
-  const { approvals, loading } = usePendingApprovals();
-  const [portfolio, setPortfolio] = useState<any>(null);
+  const { approvals } = usePendingApprovals();
+  const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
 
   useEffect(() => {
     // Fetch initial portfolio
     const fetchPortfolio = async () => {
-      const res = await fetch('http://localhost:8000/api/portfolio');
+      const res = await fetch("http://localhost:8000/api/portfolio");
       if (res.ok) {
-        const data = await res.json();
+        const data: PortfolioResponse = await res.json();
         setPortfolio(data);
       }
     };

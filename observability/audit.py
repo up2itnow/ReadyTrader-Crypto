@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import os
@@ -53,16 +54,46 @@ class AuditLog:
         if conn is None:
             return
         payload = json.dumps(summary or {}, sort_keys=True)
-        # Week 4: Hashing Logic (stubbed for now, previous_hash=NULL)
-        # Ideally, we fetch the hash of the last row and hash it with current data.
-        
+
         with self._lock:
+            # Tamper-evident hash chain (best-effort): each row stores previous_hash + event_hash
+            prev_hash = "0" * 64
+            try:
+                row = conn.execute(
+                    "SELECT event_hash FROM audit_events ORDER BY id DESC LIMIT 1"
+                ).fetchone()
+                if row and row[0]:
+                    prev_hash = str(row[0])
+            except Exception:
+                # If table/column doesn't exist yet (older DB), we fall back to zero hash.
+                prev_hash = "0" * 64
+
+            material = json.dumps(
+                {
+                    "prev": prev_hash,
+                    "ts_ms": int(ts_ms),
+                    "request_id": str(request_id),
+                    "tool": str(tool),
+                    "ok": bool(ok),
+                    "error_code": error_code,
+                    "mode": mode,
+                    "venue": venue,
+                    "exchange": exchange,
+                    "market_type": market_type,
+                    "summary_json": payload,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            event_hash = hashlib.sha256(material).hexdigest()
+
             conn.execute(
                 """
                 INSERT INTO audit_events(
-                    ts_ms, request_id, tool, ok, error_code, mode, venue, exchange, market_type, summary_json
+                    ts_ms, request_id, tool, ok, error_code, mode, venue, exchange, market_type, summary_json,
+                    previous_hash, event_hash
                 )
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     int(ts_ms),
@@ -75,6 +106,8 @@ class AuditLog:
                     exchange,
                     market_type,
                     payload,
+                    prev_hash,
+                    event_hash,
                 ),
             )
             conn.commit()
@@ -124,17 +157,18 @@ class AuditLog:
                 symbol = f"{data.get('from_token')} -> {data.get('to_token')}"
                 amount = data.get("amount")
                 side = "SWAP"
-                # Parse tx hash from result string if possible, or use request_id
-                tx_id = "see_logs" 
+                tx_id = data.get("tx_hash") or "see_logs"
             elif tool == "place_cex_order":
                 symbol = data.get("symbol")
                 amount = data.get("amount")
                 side = data.get("side", "").upper()
-                tx_id = data.get("order_id") or "see_logs"
+                order = data.get("order") or {}
+                tx_id = order.get("id") or data.get("order_id") or "see_logs"
             elif tool == "transfer_eth":
                 symbol = data.get("chain", "ETH")
                 amount = data.get("amount")
                 side = "SEND"
+                tx_id = data.get("tx_hash") or "see_logs"
             
             writer.writerow([iso_time, tool, venue, symbol, amount, side, tx_id])
             
@@ -171,10 +205,18 @@ class AuditLog:
                         venue TEXT,
                         exchange TEXT,
                         market_type TEXT,
-                        summary_json TEXT NOT NULL
+                        summary_json TEXT NOT NULL,
+                        previous_hash TEXT,
+                        event_hash TEXT
                     )
                     """
                 )
+                # Backward-compatible migrations for older DB files
+                cols = {r[1] for r in self._conn.execute("PRAGMA table_info(audit_events)").fetchall()}
+                if "previous_hash" not in cols:
+                    self._conn.execute("ALTER TABLE audit_events ADD COLUMN previous_hash TEXT;")
+                if "event_hash" not in cols:
+                    self._conn.execute("ALTER TABLE audit_events ADD COLUMN event_hash TEXT;")
                 self._conn.commit()
             return self._conn
 
