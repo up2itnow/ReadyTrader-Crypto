@@ -24,3 +24,14 @@ artifacts/
 .kiro/steering/byterover-rules.md
 .qoder/rules/byterover-rules.md
 .augment/rules/byterover-rules.md
+
+# --- Build artifacts / generated outputs ---
+# Coinbase cb-mpc local build outputs (never commit)
+vendor/cb-mpc/.openssl/
+vendor/cb-mpc/build/
+vendor/cb-mpc/lib/
+
+# MPC signer local artifacts (never commit)
+mpc_signer/mpc-signer
+mpc_signer/certs/
+mpc_signer/data/
