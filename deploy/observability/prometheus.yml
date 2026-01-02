@@ -1,0 +1,33 @@
+# ReadyTrader-Crypto Prometheus Configuration
+# 
+# Usage:
+#   docker run -d -p 9090:9090 \
+#     -v $(pwd)/prometheus.yml:/etc/prometheus/prometheus.yml \
+#     -v $(pwd)/prometheus-alerts.yml:/etc/prometheus/rules/readytrader-alerts.yml \
+#     prom/prometheus
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+rule_files:
+  - "rules/readytrader-alerts.yml"
+
+scrape_configs:
+  # ReadyTrader API server metrics
+  - job_name: 'readytrader-api'
+    static_configs:
+      - targets: ['localhost:8000']
+    metrics_path: '/api/metrics/prometheus'
+    scrape_interval: 10s
+    
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

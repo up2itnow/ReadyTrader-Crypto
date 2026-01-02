@@ -1,0 +1,162 @@
+# ReadyTrader-Crypto Prometheus Alert Rules
+# Import into Prometheus via: alerting.rules.files
+#
+# Usage:
+#   1. Copy to your Prometheus rules directory
+#   2. Add to prometheus.yml: rule_files: ["readytrader-alerts.yml"]
+#   3. Reload Prometheus
+
+groups:
+  - name: readytrader-critical
+    rules:
+      # Trading system is halted
+      - alert: TradingHalted
+        expr: readytrader_trading_halted == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Trading system is halted"
+          description: "The kill switch (TRADING_HALTED=true) is active. No trades will execute."
+          runbook_url: "https://github.com/up2itnow/ReadyTrader-Crypto/blob/main/RUNBOOK.md#trading-halted"
+
+      # Live trading enabled but no recent executions (may indicate issue)
+      - alert: LiveTradingStalled
+        expr: |
+          readytrader_live_trading_enabled == 1
+          and readytrader_paper_mode == 0
+          and rate(readytrader_tool_calls_total{tool=~"place_cex_order|swap_tokens"}[30m]) == 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Live trading enabled but no recent executions"
+          description: "Live mode is active but no orders have been placed in 30 minutes."
+
+      # High error rate on execution tools
+      - alert: ExecutionErrorRateHigh
+        expr: |
+          sum(rate(readytrader_tool_errors_total{tool=~"place_cex_order|swap_tokens|transfer_eth"}[5m])) /
+          sum(rate(readytrader_tool_calls_total{tool=~"place_cex_order|swap_tokens|transfer_eth"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High execution error rate (>10%)"
+          description: "{{ $value | humanizePercentage }} of execution calls are failing."
+          runbook_url: "https://github.com/up2itnow/ReadyTrader-Crypto/blob/main/RUNBOOK.md#execution-errors"
+
+  - name: readytrader-availability
+    rules:
+      # API server down
+      - alert: APIServerDown
+        expr: up{job="readytrader-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ReadyTrader API server is down"
+          description: "The API server has been unreachable for 2 minutes."
+
+      # WebSocket disconnected
+      - alert: MarketDataDisconnected
+        expr: readytrader_ws_connected == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Market data WebSocket disconnected"
+          description: "WebSocket market data feed has been disconnected for 5 minutes."
+
+      # Stale market data
+      - alert: MarketDataStale
+        expr: readytrader_marketdata_age_ms > 60000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Market data is stale"
+          description: "Best available market data is {{ $value }}ms old (>60s threshold)."
+
+  - name: readytrader-risk
+    rules:
+      # Pending approvals not being processed
+      - alert: PendingApprovalBacklog
+        expr: readytrader_pending_approvals > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High number of pending approvals"
+          description: "{{ $value }} trades awaiting approval. Manual intervention may be required."
+
+      # Policy violations increasing
+      - alert: PolicyViolationSpike
+        expr: |
+          rate(readytrader_tool_errors_total{error_code=~"POLICY_.*"}[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High rate of policy violations"
+          description: "Policy violations are occurring frequently. Review agent behavior."
+
+      # Rate limiting activated
+      - alert: RateLimitingActive
+        expr: |
+          rate(readytrader_rate_limit_exceeded_total[5m]) > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Rate limiting is actively blocking requests"
+          description: "Requests are being rate-limited. Consider tuning limits or reducing load."
+
+  - name: readytrader-performance
+    rules:
+      # High latency on critical tools
+      - alert: HighExecutionLatency
+        expr: |
+          histogram_quantile(0.95, rate(readytrader_tool_duration_seconds_bucket{tool=~"place_cex_order|swap_tokens"}[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High execution latency (P95 > 5s)"
+          description: "95th percentile execution latency is {{ $value }}s."
+
+      # Memory pressure
+      - alert: HighMemoryUsage
+        expr: |
+          process_resident_memory_bytes{job="readytrader-api"} / 1024 / 1024 > 500
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage (>500MB)"
+          description: "Process is using {{ $value | humanize1024 }} of memory."
+
+  - name: readytrader-security
+    rules:
+      # Authentication failures
+      - alert: AuthenticationFailureSpike
+        expr: |
+          rate(readytrader_auth_failures_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High rate of authentication failures"
+          description: "{{ $value }} auth failures per second. Possible attack or misconfiguration."
+
+      # Signer errors
+      - alert: SignerErrors
+        expr: |
+          rate(readytrader_signer_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Signer errors detected"
+          description: "Transaction signing is failing. Check signer configuration."
+          runbook_url: "https://github.com/up2itnow/ReadyTrader-Crypto/blob/main/RUNBOOK.md#signer-errors"

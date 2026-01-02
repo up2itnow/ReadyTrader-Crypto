@@ -1,0 +1,56 @@
+# ReadyTrader-Crypto Alertmanager Configuration
+#
+# This is a template - configure receivers for your environment
+#
+# Usage:
+#   docker compose --profile alerting up -d
+
+global:
+  smtp_smarthost: 'localhost:25'
+  smtp_from: 'alertmanager@readytrader.local'
+  smtp_require_tls: false
+
+route:
+  receiver: 'default-receiver'
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # Critical alerts go to a separate channel
+    - match:
+        severity: critical
+      receiver: 'critical-receiver'
+      continue: true
+
+    # Trading alerts
+    - match_re:
+        alertname: ^(TradingHalted|ExecutionErrorRateHigh|SignerErrors)$
+      receiver: 'trading-receiver'
+
+receivers:
+  - name: 'default-receiver'
+    # webhook_configs:
+    #   - url: 'http://localhost:5001/alertmanager'
+    #     send_resolved: true
+
+  - name: 'critical-receiver'
+    # slack_configs:
+    #   - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+    #     channel: '#critical-alerts'
+    #     send_resolved: true
+    # email_configs:
+    #   - to: 'oncall@example.com'
+    #     send_resolved: true
+
+  - name: 'trading-receiver'
+    # webhook_configs:
+    #   - url: 'YOUR_DISCORD_WEBHOOK_URL'
+    #     send_resolved: true
+
+inhibit_rules:
+  # Don't fire warnings when critical is already firing
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname']
