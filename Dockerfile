@@ -14,13 +14,15 @@ FROM python:3.12-slim AS builder
 WORKDIR /build
 
 # Install build dependencies
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install Python dependencies
 COPY requirements.txt .
-RUN python -m pip install --upgrade pip && \
+# hadolint ignore=DL3013
+RUN python -m pip install --no-cache-dir --upgrade pip && \
     python -m pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
 
 # =============================================================================
@@ -35,6 +37,7 @@ RUN groupadd --gid 1000 readytrader && \
 WORKDIR /app
 
 # Security: Install only runtime dependencies
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \

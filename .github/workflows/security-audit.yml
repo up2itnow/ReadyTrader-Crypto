@@ -3,7 +3,7 @@ name: Security Audit
 on:
   schedule:
     # Run weekly on Sunday at 00:00 UTC
-    - cron: '0 0 * * 0'
+    - cron: "0 0 * * 0"
   workflow_dispatch:
     inputs:
       full_audit:

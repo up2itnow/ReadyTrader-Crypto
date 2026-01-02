@@ -1,30 +1,30 @@
 name: Live-Path Integration Tests
 
-# Manual dispatch only - requires explicit approval
+# Manual dispatch only - this workflow does NOT run on push/PR
 on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Target environment for testing'
+        description: "Target environment for testing"
         required: true
-        default: 'testnet'
+        default: "testnet"
         type: choice
         options:
           - testnet
           - sandbox
       exchange:
-        description: 'Exchange to test against'
+        description: "Exchange to test against"
         required: true
-        default: 'binance'
+        default: "binance"
         type: choice
         options:
           - binance
           - coinbase
           - kraken
       test_suite:
-        description: 'Test suite to run'
+        description: "Test suite to run"
         required: true
-        default: 'connectivity'
+        default: "connectivity"
         type: choice
         options:
           - connectivity
