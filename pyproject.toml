@@ -1,17 +1,56 @@
 [project]
 name = "readytrader-crypto"
-version = "0.1.0"
+version = "0.2.0"
 description = "ReadyTrader-Crypto: agent-first crypto trading MCP with safety governance, backtesting, and stress testing."
 requires-python = ">=3.12"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q --ignore=tests/test_benchmarks.py"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "benchmark: marks tests as benchmarks (deselect with '-m \"not benchmark\"')",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["."]
+omit = [
+    "tests/*",
+    "vendor/*",
+    "frontend/*",
+    "data/*",
+    "artifacts/*",
+    "coverage_html/*",
+    "mpc_signer/*",
+    "*.pyc",
+    "__pycache__/*",
+    "setup.py",
+    "conftest.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "@abstractmethod",
+]
+show_missing = true
+precision = 2
+
+[tool.coverage.html]
+directory = "coverage_html"
 
 [tool.ruff]
 line-length = 160
 target-version = "py312"
-extend-exclude = ["data/", "vendor/", "frontend/", "frontend/node_modules/"]
+extend-exclude = ["data/", "vendor/", "frontend/", "frontend/node_modules/", "coverage_html/"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
@@ -19,4 +58,48 @@ select = ["E", "F", "I"]
 [tool.ruff.lint.per-file-ignores]
 "defi/uniswap_v3.py" = ["E501"]
 
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = false
+warn_unused_ignores = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+no_implicit_optional = false
+strict_optional = false
+warn_redundant_casts = false
+warn_unused_configs = false
+show_error_codes = true
+ignore_missing_imports = true
+explicit_package_bases = true
+exclude = [
+    "vendor/",
+    "frontend/",
+    "data/",
+    "coverage_html/",
+    "mpc_signer/",
+    "tests/",
+    "conftest.py",
+]
+
+# Core modules - enforce stricter typing
+[[tool.mypy.overrides]]
+module = [
+    "app.core.settings",
+    "errors",
+]
+disallow_untyped_defs = true
+warn_return_any = true
+
+[[tool.mypy.overrides]]
+module = [
+    "ccxt.*",
+    "web3.*",
+    "eth_account.*",
+    "feedparser.*",
+    "RestrictedPython.*",
+    "fastmcp.*",
+    "uvicorn.*",
+]
+ignore_missing_imports = true
 

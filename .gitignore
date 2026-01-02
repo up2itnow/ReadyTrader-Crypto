@@ -2,10 +2,12 @@
 .env
 __pycache__/
 *.pyc
+*.pyo
 
 # Virtual Environment
 venv/
 env/
+.venv/
 
 # Database (Paper Trading & Stores)
 data/
@@ -13,6 +15,15 @@ paper.db
 
 # Demo / local artifacts (Phase 6)
 artifacts/
+
+# Coverage reports
+coverage_html/
+coverage.xml
+.coverage
+htmlcov/
+
+# Pytest cache
+.pytest_cache/
 
 # OS
 .DS_Store

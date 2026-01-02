@@ -1,23 +1,12 @@
-import os
+"""
+ReadyTrader-Crypto Configuration (Legacy Compatibility)
 
-from dotenv import load_dotenv
+This module re-exports the unified settings for backward compatibility.
+New code should import directly from app.core.settings.
+"""
 
-load_dotenv()
+from app.core.settings import Settings, get_execution_approval_mode, set_execution_approval_mode, settings
 
-class Settings:
-    PROJECT_NAME: str = "ReadyTrader-Crypto"
-    VERSION: str = "0.1.0"
-    
-    PAPER_MODE: bool = os.getenv("PAPER_MODE", "true").lower() == "true"
-    LIVE_TRADING_ENABLED: bool = os.getenv("LIVE_TRADING_ENABLED", "false").strip().lower() == "true"
-    TRADING_HALTED: bool = os.getenv("TRADING_HALTED", "false").strip().lower() == "true"
-    
-    # Risk & execution
-    EXECUTION_APPROVAL_MODE: str = os.getenv("EXECUTION_APPROVAL_MODE", "auto").strip().lower()
-    EXECUTION_MODE: str = os.getenv("EXECUTION_MODE", "auto").strip().lower()
-    RISK_PROFILE: str = os.getenv("RISK_PROFILE", "conservative").strip().lower()
-    
-    # Observability
-    RATE_LIMIT_DEFAULT_PER_MIN: int = int(os.getenv("RATE_LIMIT_DEFAULT_PER_MIN", "120"))
-    
-settings = Settings()
+# Legacy: expose settings object attributes as class attributes
+# New code should use settings.ATTRIBUTE directly
+__all__ = ["settings", "Settings", "get_execution_approval_mode", "set_execution_approval_mode"]

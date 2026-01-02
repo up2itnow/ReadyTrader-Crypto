@@ -4,7 +4,15 @@ exclude_dirs:
   - data
   - vendor
   - frontend
+  - .venv
+  - venv
+  - env
+  - coverage_html
+  - mpc_signer
 
 skips:
-  - B101
+  - B101   # assert used in tests only
+  - B110   # try/except/pass is intentional in observability code
+  - B311   # random for jitter is not security-critical
+  - B608   # SQL injection false positives - queries use parameterized values or controlled inputs
 
