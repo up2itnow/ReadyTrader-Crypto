@@ -42,9 +42,7 @@ def rpc_url_for(chain: str) -> str:
     key = c.upper()
     url = _env(f"EVM_RPC_URL_{key}") or _env(f"RPC_URL_{key}")
     if not url:
-        raise ValueError(
-            f"Missing RPC URL for chain '{chain}'. Set EVM_RPC_URL_{key} (or RPC_URL_{key})."
-        )
+        raise ValueError(f"Missing RPC URL for chain '{chain}'. Set EVM_RPC_URL_{key} (or RPC_URL_{key}).")
     return url
 
 
@@ -123,4 +121,3 @@ def send_raw_transaction(chain: str, raw_tx: bytes) -> str:
     tx_hash = w3.eth.send_raw_transaction(raw_tx)
     # tx_hash is HexBytes
     return w3.to_hex(tx_hash)
-

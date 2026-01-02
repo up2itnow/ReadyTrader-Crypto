@@ -112,7 +112,7 @@ def swap_tokens(
     - broadcasts via JSON-RPC
     """
     symbol = f"{from_token}/{to_token}"
-    
+
     if settings.PAPER_MODE:
         if not global_container.paper_engine:
             return _json_err("paper_engine_missing", "Paper engine not initialized.")
@@ -142,9 +142,7 @@ def swap_tokens(
         if proposed:
             return proposed
 
-        global_container.policy_engine.validate_swap(
-            chain=chain, from_token=from_token, to_token=to_token, amount=amount
-        )
+        global_container.policy_engine.validate_swap(chain=chain, from_token=from_token, to_token=to_token, amount=amount)
 
         if idempotency_key:
             cached = global_container.idempotency_store.get(idempotency_key)
@@ -188,9 +186,7 @@ def swap_tokens(
         if not router_to:
             raise ValueError("Swap tx missing 'to' (router address)")
 
-        global_container.policy_engine.validate_router_address(
-            chain=chain, router_address=router_to, context={"from_token": from_token, "to_token": to_token}
-        )
+        global_container.policy_engine.validate_router_address(chain=chain, router_address=router_to, context={"from_token": from_token, "to_token": to_token})
         global_container.policy_engine.validate_sign_tx(
             chain_id=chain_id,
             to_address=router_to,
@@ -209,15 +205,12 @@ def swap_tokens(
         # Normalize numeric fields that frequently arrive as hex strings from APIs
 
         if "value" in tx:
-
             tx["value"] = _parse_int(tx.get("value"), 0)
 
         if "gas" in tx:
-
             tx["gas"] = _parse_int(tx.get("gas"), 0)
 
         if "gasPrice" in tx:
-
             tx["gasPrice"] = _parse_int(tx.get("gasPrice"), 0)
         if not tx.get("nonce"):
             tx["nonce"] = w3.eth.get_transaction_count(Web3.to_checksum_address(user_address))
@@ -429,6 +422,12 @@ def place_cex_order(
 
 
 def get_cex_balance(exchange: str = "binance", market_type: str = "spot") -> str:
+    """
+    Fetch account balance from a centralized exchange.
+
+    Returns the balance of all assets in the account. Requires CEX credentials
+    configured via environment variables (CEX_API_KEY, CEX_API_SECRET).
+    """
     try:
         _require_live_allowed(venue="cex")
         global_container.policy_engine.validate_cex_access(exchange_id=exchange)
@@ -440,6 +439,12 @@ def get_cex_balance(exchange: str = "binance", market_type: str = "spot") -> str
 
 
 def get_cex_order(order_id: str, symbol: str = "", exchange: str = "binance", market_type: str = "spot") -> str:
+    """
+    Fetch details of a specific order from a centralized exchange.
+
+    Retrieves the current state of an order including fill status, executed
+    quantity, and average price. Useful for tracking order execution.
+    """
     try:
         _require_live_allowed(venue="cex")
         global_container.policy_engine.validate_cex_access(exchange_id=exchange)
@@ -451,6 +456,12 @@ def get_cex_order(order_id: str, symbol: str = "", exchange: str = "binance", ma
 
 
 def cancel_cex_order(order_id: str, symbol: str = "", exchange: str = "binance", market_type: str = "spot") -> str:
+    """
+    Cancel an open order on a centralized exchange.
+
+    Attempts to cancel an unfilled or partially filled order. Returns the
+    cancellation result. Note: orders may fill before cancellation completes.
+    """
     try:
         _require_live_allowed(venue="cex")
         global_container.policy_engine.validate_cex_access(exchange_id=exchange)
@@ -462,6 +473,13 @@ def cancel_cex_order(order_id: str, symbol: str = "", exchange: str = "binance",
 
 
 def get_cex_capabilities(exchange: str = "binance", symbol: str = "", market_type: str = "spot") -> str:
+    """
+    Query exchange capabilities and market information.
+
+    Returns supported features, order types, timeframes, and market metadata
+    for the specified exchange. Useful for determining available functionality
+    before placing orders. Does not require authentication.
+    """
     try:
         # capabilities are safe; allow even if trading halted
         if settings.EXECUTION_MODE == "dex":
@@ -474,6 +492,12 @@ def get_cex_capabilities(exchange: str = "binance", symbol: str = "", market_typ
 
 
 def list_cex_open_orders(exchange: str = "binance", symbol: str = "", market_type: str = "spot", limit: int = 100) -> str:
+    """
+    List all currently open (unfilled) orders on a centralized exchange.
+
+    Returns orders that are pending execution. Can be filtered by symbol.
+    Useful for monitoring active positions and managing order book exposure.
+    """
     try:
         _require_live_allowed(venue="cex")
         global_container.policy_engine.validate_cex_access(exchange_id=exchange)
@@ -486,6 +510,12 @@ def list_cex_open_orders(exchange: str = "binance", symbol: str = "", market_typ
 
 
 def list_cex_orders(exchange: str = "binance", symbol: str = "", market_type: str = "spot", limit: int = 100) -> str:
+    """
+    List recent orders (open, filled, and cancelled) from a centralized exchange.
+
+    Returns order history including both active and completed orders. Useful
+    for reviewing trading activity and reconciling execution history.
+    """
     try:
         _require_live_allowed(venue="cex")
         global_container.policy_engine.validate_cex_access(exchange_id=exchange)
@@ -498,6 +528,12 @@ def list_cex_orders(exchange: str = "binance", symbol: str = "", market_type: st
 
 
 def get_cex_my_trades(exchange: str = "binance", symbol: str = "", market_type: str = "spot", limit: int = 100) -> str:
+    """
+    Fetch executed trades (fills) from a centralized exchange.
+
+    Returns actual trade executions with price, quantity, and fee information.
+    Useful for P&L calculation, tax reporting, and execution analysis.
+    """
     try:
         _require_live_allowed(venue="cex")
         global_container.policy_engine.validate_cex_access(exchange_id=exchange)
@@ -509,6 +545,13 @@ def get_cex_my_trades(exchange: str = "binance", symbol: str = "", market_type: 
 
 
 def cancel_all_cex_orders(exchange: str = "binance", symbol: str = "", market_type: str = "spot") -> str:
+    """
+    Cancel all open orders on a centralized exchange.
+
+    Emergency function to cancel all pending orders. Can be filtered by symbol.
+    Useful for risk management and rapid position unwinding.
+    Note: not all exchanges support this operation.
+    """
     try:
         _require_live_allowed(venue="cex")
         global_container.policy_engine.validate_cex_access(exchange_id=exchange)
@@ -529,6 +572,13 @@ def replace_cex_order(
     price: float | None = None,
     market_type: str = "spot",
 ) -> str:
+    """
+    Replace (edit) an existing order on a centralized exchange.
+
+    Atomically cancels the existing order and places a new one with updated
+    parameters. Useful for adjusting limit prices without losing queue position.
+    Note: not all exchanges support this operation.
+    """
     try:
         _require_live_allowed(venue="cex")
         global_container.policy_engine.validate_cex_access(exchange_id=exchange)
@@ -555,6 +605,13 @@ def wait_for_cex_order(
     timeout_sec: int = 30,
     poll_interval_sec: float = 2.0,
 ) -> str:
+    """
+    Wait for an order to reach a terminal state (filled, cancelled, rejected).
+
+    Polls the exchange at regular intervals until the order completes or
+    the timeout is reached. Useful for synchronous execution flows.
+    Returns the final order state.
+    """
     try:
         _require_live_allowed(venue="cex")
         deadline = time.time() + max(1.0, float(timeout_sec))
@@ -574,15 +631,34 @@ def wait_for_cex_order(
 
 
 def start_cex_private_ws(exchange: str = "binance", market_type: str = "spot") -> str:
+    """
+    Start a private WebSocket stream for real-time order/execution updates.
+
+    Supports native WebSocket for: Binance, Kraken, Coinbase.
+    For other exchanges, falls back to REST polling.
+    Provides real-time notifications of order fills and status changes.
+    """
     if settings.PAPER_MODE:
         return _json_err("paper_mode_not_supported", "Private updates are not supported in paper mode.")
     try:
         global_container.policy_engine.validate_cex_access(exchange_id=exchange)
         ex = (exchange or "").strip().lower()
         mt = (market_type or "spot").strip().lower()
+
+        # Native WebSocket support for major exchanges
         if ex == "binance":
             global_container.binance_user_streams.start(market_type=mt)
             return _json_ok({"mode": "ws", "exchange": ex, "market_type": mt, "status": "started"})
+
+        if ex == "kraken":
+            global_container.kraken_user_streams.start()
+            return _json_ok({"mode": "ws", "exchange": ex, "market_type": mt, "status": "started"})
+
+        if ex in ("coinbase", "coinbasepro", "coinbaseadvanced"):
+            global_container.coinbase_user_streams.start()
+            return _json_ok({"mode": "ws", "exchange": "coinbase", "market_type": mt, "status": "started"})
+
+        # Fallback to REST polling for other exchanges
         poll = float((os.getenv("CEX_PRIVATE_POLL_INTERVAL_SEC") or "2.0").strip() or "2.0")
         global_container.cex_private_updates.start(exchange=ex, market_type=mt, poll_interval_sec=poll)
         return _json_ok({"mode": "poll", "exchange": ex, "market_type": mt, "status": "started"})
@@ -591,14 +667,30 @@ def start_cex_private_ws(exchange: str = "binance", market_type: str = "spot") -
 
 
 def stop_cex_private_ws(exchange: str = "binance", market_type: str = "spot") -> str:
+    """
+    Stop a private WebSocket stream for order/execution updates.
+
+    Cleanly disconnects from the exchange's private update channel.
+    Should be called when monitoring is no longer needed.
+    """
     if settings.PAPER_MODE:
         return _json_err("paper_mode_not_supported", "Private updates are not supported in paper mode.")
     try:
         ex = (exchange or "").strip().lower()
         mt = (market_type or "spot").strip().lower()
+
         if ex == "binance":
             global_container.binance_user_streams.stop(market_type=mt)
             return _json_ok({"mode": "ws", "exchange": ex, "market_type": mt, "status": "stopped"})
+
+        if ex == "kraken":
+            global_container.kraken_user_streams.stop()
+            return _json_ok({"mode": "ws", "exchange": ex, "market_type": mt, "status": "stopped"})
+
+        if ex in ("coinbase", "coinbasepro", "coinbaseadvanced"):
+            global_container.coinbase_user_streams.stop()
+            return _json_ok({"mode": "ws", "exchange": "coinbase", "market_type": mt, "status": "stopped"})
+
         global_container.cex_private_updates.stop(exchange=ex, market_type=mt)
         return _json_ok({"mode": "poll", "exchange": ex, "market_type": mt, "status": "stopped"})
     except Exception as e:
@@ -606,14 +698,31 @@ def stop_cex_private_ws(exchange: str = "binance", market_type: str = "spot") ->
 
 
 def list_cex_private_updates(exchange: str = "binance", market_type: str = "spot", limit: int = 100) -> str:
+    """
+    List recent private updates (order fills, status changes) from exchange.
+
+    Returns buffered events from the active private update stream.
+    Events include order executions, status changes, and account updates.
+    Requires start_cex_private_ws to be called first.
+    """
     if settings.PAPER_MODE:
         return _json_err("paper_mode_not_supported", "Private updates are not supported in paper mode.")
     try:
         ex = (exchange or "").strip().lower()
         mt = (market_type or "spot").strip().lower()
+
         if ex == "binance":
             events = global_container.binance_user_streams.list_events(market_type=mt, limit=int(limit))
             return _json_ok({"mode": "ws", "exchange": ex, "market_type": mt, "events": events})
+
+        if ex == "kraken":
+            events = global_container.kraken_user_streams.list_events(limit=int(limit))
+            return _json_ok({"mode": "ws", "exchange": ex, "market_type": mt, "events": events})
+
+        if ex in ("coinbase", "coinbasepro", "coinbaseadvanced"):
+            events = global_container.coinbase_user_streams.list_events(limit=int(limit))
+            return _json_ok({"mode": "ws", "exchange": "coinbase", "market_type": mt, "events": events})
+
         events = global_container.cex_private_updates.list_events(exchange=ex, market_type=mt, limit=int(limit))
         return _json_ok({"mode": "poll", "exchange": ex, "market_type": mt, "events": events})
     except Exception as e:
@@ -622,23 +731,23 @@ def list_cex_private_updates(exchange: str = "binance", market_type: str = "spot
 
 def register_execution_tools(mcp: FastMCP):
     # DEX / on-chain
-    mcp.add_tool(swap_tokens)
-    mcp.add_tool(transfer_eth)
+    mcp.tool()(swap_tokens)
+    mcp.tool()(transfer_eth)
 
     # CEX execution & account tools
-    mcp.add_tool(place_cex_order)
-    mcp.add_tool(get_cex_balance)
-    mcp.add_tool(get_cex_order)
-    mcp.add_tool(cancel_cex_order)
-    mcp.add_tool(wait_for_cex_order)
-    mcp.add_tool(get_cex_capabilities)
-    mcp.add_tool(list_cex_open_orders)
-    mcp.add_tool(list_cex_orders)
-    mcp.add_tool(get_cex_my_trades)
-    mcp.add_tool(cancel_all_cex_orders)
-    mcp.add_tool(replace_cex_order)
+    mcp.tool()(place_cex_order)
+    mcp.tool()(get_cex_balance)
+    mcp.tool()(get_cex_order)
+    mcp.tool()(cancel_cex_order)
+    mcp.tool()(wait_for_cex_order)
+    mcp.tool()(get_cex_capabilities)
+    mcp.tool()(list_cex_open_orders)
+    mcp.tool()(list_cex_orders)
+    mcp.tool()(get_cex_my_trades)
+    mcp.tool()(cancel_all_cex_orders)
+    mcp.tool()(replace_cex_order)
 
     # Private updates
-    mcp.add_tool(start_cex_private_ws)
-    mcp.add_tool(stop_cex_private_ws)
-    mcp.add_tool(list_cex_private_updates)
+    mcp.tool()(start_cex_private_ws)
+    mcp.tool()(stop_cex_private_ws)
+    mcp.tool()(list_cex_private_updates)

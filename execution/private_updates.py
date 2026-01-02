@@ -219,4 +219,3 @@ class CexPrivateUpdateManager:
         with self._lock:
             items = list(self._pollers.items())
         return {k: p.status() for k, p in items}
-

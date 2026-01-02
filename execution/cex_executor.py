@@ -45,18 +45,17 @@ def load_cex_credentials(exchange_id: str, *, require_auth: bool = True) -> Opti
     if not api_key or not api_secret:
         if not require_auth:
             return None
-        raise ValueError(
-            f"Missing CEX credentials for exchange '{exchange_id}'. Set {prefix}API_KEY/{prefix}API_SECRET "
-            f"or CEX_API_KEY/CEX_API_SECRET."
-        )
+        raise ValueError(f"Missing CEX credentials for exchange '{exchange_id}'. Set {prefix}API_KEY/{prefix}API_SECRET or CEX_API_KEY/CEX_API_SECRET.")
 
     return CexCredentials(exchange_id=ex, api_key=api_key, api_secret=api_secret, api_password=api_password)
 
+
 def _get_proxy() -> Optional[str]:
-    return (_env("CCXT_PROXY") or _env("HTTPS_PROXY") or _env("HTTP_PROXY"))
+    return _env("CCXT_PROXY") or _env("HTTPS_PROXY") or _env("HTTP_PROXY")
+
 
 def _get_default_type() -> Optional[str]:
-    dt = (_env("CCXT_DEFAULT_TYPE") or _env("CEX_MARKET_TYPE"))
+    dt = _env("CCXT_DEFAULT_TYPE") or _env("CEX_MARKET_TYPE")
     return dt.strip().lower() if dt else None
 
 
@@ -92,12 +91,14 @@ def _build_exchange(exchange_id: str, *, market_type: str, creds: Optional[CexCr
 
     return ex_cls(params)
 
+
 @lru_cache(maxsize=64)
 def _get_public_exchange(exchange_id: str, market_type: str) -> ccxt.Exchange:
     """
     Cached public (unauthenticated) ccxt exchange instance configured from env.
     """
     return _build_exchange(exchange_id, market_type=market_type, creds=None)
+
 
 @lru_cache(maxsize=64)
 def _get_private_exchange(exchange_id: str, market_type: str) -> ccxt.Exchange:
@@ -113,11 +114,7 @@ class CexExecutor:
         self.exchange_id = exchange_id.strip().lower()
         self.market_type = normalize_market_type(market_type)
         self.auth = bool(auth)
-        self._ex = (
-            _get_private_exchange(self.exchange_id, self.market_type)
-            if self.auth
-            else _get_public_exchange(self.exchange_id, self.market_type)
-        )
+        self._ex = _get_private_exchange(self.exchange_id, self.market_type) if self.auth else _get_public_exchange(self.exchange_id, self.market_type)
 
     def _require_auth(self, op: str) -> None:
         if not self.auth:
@@ -353,4 +350,3 @@ class CexExecutor:
             f"{self.exchange_id}.edit_order",
             lambda: self._ex.edit_order(order_id, s, t, sd, amount, price, p),
         )
-

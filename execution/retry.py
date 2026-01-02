@@ -77,4 +77,3 @@ def with_retry(op: str, fn: Callable[[], T]) -> T:
 
     # should never reach
     raise last_exc or RuntimeError("retry_failed")
-

@@ -235,7 +235,7 @@ class BinanceTickerStream(_WsStream):
         self.symbols = [s.strip().upper() for s in symbols if s.strip()]
         self.store = store
         # map BTCUSDT -> BTC/USDT
-        self.stream_to_symbol: Dict[str, str] = { _binance_stream_symbol(s).upper(): s for s in self.symbols }
+        self.stream_to_symbol: Dict[str, str] = {_binance_stream_symbol(s).upper(): s for s in self.symbols}
 
     def _url(self) -> str:
         base = "wss://stream.binance.com:9443/stream"
@@ -421,4 +421,3 @@ class WsStreamManager:
         with self._lock:
             items = list(self._streams.items())
         return {k: v.status() for k, v in items}
-

@@ -16,6 +16,7 @@ import os
 import random
 import threading
 import time
+from abc import ABC, abstractmethod
 from collections import deque
 from typing import Any, Deque, Dict, Optional
 
@@ -25,12 +26,18 @@ import websockets
 from .cex_executor import load_cex_credentials
 
 
-class _MetricsLike:
-    def inc(self, name: str, value: int = 1) -> None:  # pragma: no cover
-        raise NotImplementedError
+class _MetricsLike(ABC):
+    """Abstract interface for metrics collection (compatible with observability.metrics)."""
 
+    @abstractmethod
+    def inc(self, name: str, value: int = 1) -> None:  # pragma: no cover
+        """Increment a counter metric."""
+        ...
+
+    @abstractmethod
     def set_gauge(self, name: str, value: float) -> None:  # pragma: no cover
-        raise NotImplementedError
+        """Set a gauge metric value."""
+        ...
 
 
 def _http_timeout() -> float:
@@ -220,4 +227,3 @@ class BinanceUserStreamManager:
 
     def status(self) -> Dict[str, Any]:
         return {"spot": self._spot.status(), "swap": self._swap.status()}
-

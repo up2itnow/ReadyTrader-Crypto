@@ -20,4 +20,3 @@ def venue_allowed(execution_mode: str, venue: str) -> bool:
         return v == "cex"
     # Unknown execution mode: safest is deny
     return False
-

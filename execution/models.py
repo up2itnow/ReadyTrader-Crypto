@@ -113,9 +113,7 @@ def normalize_ccxt_order(*, exchange: str, market_type: str, order: Dict[str, An
     return NormalizedOrder(
         exchange=exchange,
         id=str(order.get("id")) if order.get("id") is not None else None,
-        client_order_id=(
-            str(order.get("clientOrderId")) if order.get("clientOrderId") is not None else None
-        ),
+        client_order_id=(str(order.get("clientOrderId")) if order.get("clientOrderId") is not None else None),
         symbol=str(order.get("symbol") or ""),
         market_type=mt,
         side=str(order.get("side") or "").lower(),
@@ -130,4 +128,3 @@ def normalize_ccxt_order(*, exchange: str, market_type: str, order: Dict[str, An
         timestamp=order.get("timestamp"),
         raw=order,
     )
-
