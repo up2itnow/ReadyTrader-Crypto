@@ -27,6 +27,15 @@ htmlcov/
 
 # OS
 .DS_Store
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+pyrightconfig.json
+
+# Agent rules (various AI IDE plugins)
 .clinerules/byterover-rules.md
 .kilocode/rules/byterover-rules.md
 .roo/rules/byterover-rules.md

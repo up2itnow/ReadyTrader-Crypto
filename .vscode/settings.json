@@ -1,9 +1,0 @@
-{
-  "python.defaultInterpreterPath": "/Users/billwilson_home/miniconda3/envs/ReadyTrader-Crypto/bin/python",
-  "python.analysis.extraPaths": [
-    "/Users/billwilson_home/Desktop/ReadyTrader-Crypto"
-  ],
-  "basedpyright.analysis.extraPaths": [
-    "/Users/billwilson_home/Desktop/ReadyTrader-Crypto"
-  ]
-}
