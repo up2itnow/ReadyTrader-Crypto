@@ -7,6 +7,7 @@ export type PendingApproval = {
     kind: string;
     created_at: number;
     expires_at: number;
+    confirm_token?: string;
 };
 
 export function usePendingApprovals() {
